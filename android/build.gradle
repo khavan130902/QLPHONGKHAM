@@ -1,0 +1,27 @@
+buildscript {
+    ext {
+        buildToolsVersion = "36.0.0"
+        minSdkVersion = 24
+        compileSdkVersion = 36
+        targetSdkVersion = 36
+        ndkVersion = "27.1.12297006"
+        // Use a Kotlin version compatible with most React Native native modules
+        // Kotlin 2.x can be too new for some libraries; 1.9.10 is a stable choice.
+        kotlinVersion = "1.9.10"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // Leave Android Gradle plugin version resolution to the environment / RN plugin.
+        // Using a bare artifact coordinates (no explicit version) returns to the previous behavior.
+        classpath("com.android.tools.build:gradle")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        // Kotlin plugin pinned to the ext.kotlinVersion defined above
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}")
+        classpath 'com.google.gms:google-services:4.4.4'
+    }
+}
+
+apply plugin: "com.facebook.react.rootproject"
