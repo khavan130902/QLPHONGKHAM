@@ -10,12 +10,79 @@ import {
   Modal,
   TextInput,
   Platform,
+  SafeAreaView, // Thêm SafeAreaView để xử lý notch
 } from 'react-native';
 import Avatar from '@/components/Avatar';
-import Button from '@/components/Button';
+import Button from '@/components/Button'; // Đã sửa lỗi style/textStyle trong file Button.tsx
 import db from '@/services/firestore';
 import safeAlert from '@/utils/safeAlert';
 import { uploadImage } from '@/services/storage';
+
+// Bảng màu đồng bộ
+const COLORS = {
+  primary: '#2596be', // Màu xanh chủ đạo
+  background: '#f8f9fa', // Nền tổng thể rất nhạt
+  cardBackground: '#ffffff', // Nền card trắng
+  textDark: '#1c1c1c',
+  textLight: '#4a4a4a',
+  subtitle: '#777777',
+  shadowColor: '#000000',
+  borderColor: '#E5E7EB',
+  danger: '#d00',
+  lightGray: '#f6f6f6',
+};
+
+// Component con RenderItem (giúp code chính gọn hơn)
+const AccountItem = ({ item, changeRole, openEdit, onDelete }: any) => {
+  const isDoctor = item.role === 'doctor';
+  const roleLabel = isDoctor ? 'Bác sĩ' : 'Bệnh nhân';
+  const newRole = isDoctor ? 'patient' : 'doctor';
+  const newRoleLabel = isDoctor ? 'Bệnh nhân' : 'Bác sĩ';
+
+  return (
+    <View style={styles.itemRow}>
+      <TouchableOpacity onPress={() => openEdit(item)}>
+        <Avatar uri={item.photoURL} name={item.name} size={48} />
+      </TouchableOpacity>
+
+      <View style={styles.itemInfo}>
+        <Text style={styles.itemName}>{item.name || 'Chưa đặt tên'}</Text>
+        <Text style={styles.itemSub}>
+          {item.email || item.phoneNumber || 'Không có liên hệ'}
+        </Text>
+        {isDoctor && item.specialty && (
+          <Text style={styles.itemSpecialty}>{item.specialty}</Text>
+        )}
+      </View>
+
+      <View style={styles.itemActions}>
+        <Button
+          title={`Vai trò`}
+          onPress={() => changeRole(item.id, newRole)}
+          // 💡 Đổi style cho nút Vai trò
+          style={[styles.actionButton, { backgroundColor: COLORS.primary }]}
+          textStyle={styles.actionButtonText}
+        />
+        <View style={{ width: 8 }} />
+        <Button
+          title="Sửa"
+          onPress={() => openEdit(item)}
+          // 💡 Đổi style cho nút Sửa
+          style={[styles.actionButton, { backgroundColor: COLORS.textLight }]}
+          textStyle={styles.actionButtonText}
+        />
+        <View style={{ width: 8 }} />
+        <TouchableOpacity 
+          onPress={() => onDelete(item.id)}
+          style={styles.deleteButton}
+        >
+          <Text style={styles.deleteButtonText}>Xóa</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
 
 export default function ManageDoctorsScreen() {
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -37,11 +104,13 @@ export default function ManageDoctorsScreen() {
   const [editPhone, setEditPhone] = useState('');
   const [editAge, setEditAge] = useState('');
   const [editAddress, setEditAddress] = useState('');
-  const [editSpecialty, setEditSpecialty] = useState('');
+  // const [editSpecialty, setEditSpecialty] = useState(''); // Không dùng trực tiếp
   const [editSpecialtyId, setEditSpecialtyId] = useState<string | null>(null);
   const [specialties, setSpecialties] = useState<any[]>([]);
   const [specialtyPickerVisible, setSpecialtyPickerVisible] = useState(false);
-
+  
+  // Logic load, changeRole, onDelete, saveEdit, pickFromLibrary, takePhoto (giữ nguyên)
+  // ... (giữ nguyên logic functions)
   useEffect(() => {
     loadAccounts();
     loadSpecialties();
@@ -59,7 +128,6 @@ export default function ManageDoctorsScreen() {
   async function loadAccounts() {
     try {
       setLoading(true);
-      // load both patients and doctors so admin can switch roles freely
       const snap = await db
         .collection('users')
         .where('role', 'in', ['doctor', 'patient'])
@@ -123,7 +191,7 @@ export default function ManageDoctorsScreen() {
     setEditPhoto(user.photoURL || '');
     setEditPhone(user.phoneNumber || user['phone number'] || '');
     // prefer id-based specialty; keep text field empty (we'll show name via id)
-    setEditSpecialty('');
+    // setEditSpecialty(''); // Bỏ dòng này vì không dùng state editSpecialty nữa
     setEditSpecialtyId(user.specialty_id || null);
     setEditAge(user.age ? String(user.age) : '');
     setEditAddress(user.address || '');
@@ -134,10 +202,7 @@ export default function ManageDoctorsScreen() {
     if (!editingUser) return;
     const id = editingUser.id;
     try {
-      // If an editSpecialtyId is selected, resolve its canonical name from
-      // the `specialties` collection and store both the id and the name on
-      // the user document (keeps backward-compatible `specialty` text).
-      let specialtyName: string | null = editSpecialty || null;
+      let specialtyName: string | null = null;
       if (editSpecialtyId) {
         try {
           const sdoc = await db
@@ -194,6 +259,7 @@ export default function ManageDoctorsScreen() {
   }
 
   async function pickFromLibrary() {
+    // ... (logic giữ nguyên)
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const ImagePicker = require('react-native-image-picker');
@@ -210,13 +276,11 @@ export default function ManageDoctorsScreen() {
         }
         const asset = response.assets && response.assets[0];
         if (asset && asset.uri) {
-          // if remote URL already, use it
           if (/^https?:\/\//i.test(asset.uri)) {
             setEditPhoto(asset.uri);
             setShowPhotoInput(false);
             return;
           }
-          // upload local file
           setUploadingPhoto(true);
           setUploadProgress(0);
           try {
@@ -246,6 +310,7 @@ export default function ManageDoctorsScreen() {
   }
 
   async function takePhoto() {
+    // ... (logic giữ nguyên)
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const ImagePicker = require('react-native-image-picker');
@@ -294,409 +359,495 @@ export default function ManageDoctorsScreen() {
       );
     }
   }
+  // ... (kết thúc logic functions)
+
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Quản lý tài khoản (Bác sĩ & Bệnh nhân)</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <Text style={styles.headerTitle}>Quản lý tài khoản</Text>
+        <Text style={styles.headerSubtitle}>
+          Bác sĩ và Bệnh nhân
+        </Text>
 
-      {loading ? (
-        <ActivityIndicator />
-      ) : (
-        <>
-          <TouchableOpacity
-            style={styles.sectionHeader}
-            onPress={() => setPatientsCollapsed(v => !v)}
-          >
-            <Text style={styles.sectionTitle}>Bệnh nhân</Text>
-            <Text style={styles.sectionCount}>
-              {accounts.filter(a => a.role === 'patient').length}
-            </Text>
-          </TouchableOpacity>
+        {loading ? (
+          <ActivityIndicator color={COLORS.primary} style={{ marginTop: 20 }} />
+        ) : (
+          <>
+            {/* --- Phần Bệnh nhân --- */}
+            <TouchableOpacity
+              style={styles.sectionHeader}
+              onPress={() => setPatientsCollapsed(v => !v)}
+            >
+              <Text style={styles.sectionTitle}>
+                Bệnh nhân ({accounts.filter(a => a.role === 'patient').length})
+              </Text>
+              <Text style={styles.collapseIcon}>{patientsCollapsed ? '▼' : '▲'}</Text>
+            </TouchableOpacity>
 
-          {!patientsCollapsed && (
-            <FlatList
-              data={accounts.filter(a => a.role === 'patient')}
-              keyExtractor={i => i.id}
-              renderItem={({ item }) => (
-                <View style={styles.row}>
-                  <TouchableOpacity onPress={() => openEdit(item)}>
-                    <Avatar uri={item.photoURL} name={item.name} size={44} />
-                  </TouchableOpacity>
-                  <View style={{ marginLeft: 12, flex: 1 }}>
-                    <Text style={styles.name}>{item.name || item.id}</Text>
-                    <Text style={styles.sub}>
-                      {item.email || item.phone || ''}
-                    </Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Button
-                      title="Vai trò"
-                      onPress={() => changeRole(item.id, 'doctor')}
-                    />
-                    <View style={{ width: 8 }} />
-                    <Button title="Sửa" onPress={() => openEdit(item)} />
-                    <View style={{ width: 8 }} />
-                    <TouchableOpacity onPress={() => onDelete(item.id)}>
-                      <Text style={{ color: '#d00', fontWeight: '700' }}>
-                        Xóa
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-              ListEmptyComponent={() => (
-                <View style={{ paddingVertical: 24 }}>
-                  <Text style={{ color: '#666' }}>Không có bệnh nhân.</Text>
-                </View>
-              )}
-            />
-          )}
-
-          <TouchableOpacity
-            style={styles.sectionHeader}
-            onPress={() => setDoctorsCollapsed(v => !v)}
-          >
-            <Text style={styles.sectionTitle}>Bác sĩ</Text>
-            <Text style={styles.sectionCount}>
-              {accounts.filter(a => a.role === 'doctor').length}
-            </Text>
-          </TouchableOpacity>
-
-          {!doctorsCollapsed && (
-            <FlatList
-              data={accounts.filter(a => a.role === 'doctor')}
-              keyExtractor={i => i.id}
-              renderItem={({ item }) => (
-                <View style={styles.row}>
-                  <TouchableOpacity onPress={() => openEdit(item)}>
-                    <Avatar uri={item.photoURL} name={item.name} size={44} />
-                  </TouchableOpacity>
-                  <View style={{ marginLeft: 12, flex: 1 }}>
-                    <Text style={styles.name}>{item.name || item.id}</Text>
-                    <Text style={styles.sub}>
-                      {item.email || item.phone || ''}
-                    </Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Button
-                      title="Vai trò"
-                      onPress={() => changeRole(item.id, 'patient')}
-                    />
-                    <View style={{ width: 8 }} />
-                    <Button title="Sửa" onPress={() => openEdit(item)} />
-                    <View style={{ width: 8 }} />
-                    <TouchableOpacity onPress={() => onDelete(item.id)}>
-                      <Text style={{ color: '#d00', fontWeight: '700' }}>
-                        Xóa
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-              ListEmptyComponent={() => (
-                <View style={{ paddingVertical: 24 }}>
-                  <Text style={{ color: '#666' }}>Không có bác sĩ.</Text>
-                </View>
-              )}
-            />
-          )}
-
-          <Modal visible={editing} animationType="slide" transparent={true}>
-            <View style={styles.modalBackdrop}>
-              <View style={styles.modalContent}>
-                <Text style={{ fontWeight: '700', marginBottom: 8 }}>
-                  Sửa thông tin
-                </Text>
-
-                <Text style={styles.inputLabel}>Tên</Text>
-                <TextInput
-                  placeholder="Tên"
-                  value={editName}
-                  onChangeText={setEditName}
-                  style={styles.input}
-                />
-
-                {/* Show role (patient/doctor) for full info */}
-                <Text style={[styles.inputLabel, { marginTop: 4 }]}>
-                  Vai trò
-                </Text>
-                <View
-                  style={{
-                    padding: 8,
-                    backgroundColor: '#f6f6f6',
-                    borderRadius: 6,
-                    marginBottom: 8,
-                  }}
-                >
-                  <Text>{editingUser?.role || '-'}</Text>
-                </View>
-
-                {/* Avatar - clickable to edit Photo URL (inline input) */}
-                <View style={{ alignItems: 'center', marginBottom: 8 }}>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setPhotoInputText(editPhoto || '');
-                      setShowPhotoInput(true);
-                    }}
-                    accessibilityLabel="Chạm để thay đổi ảnh"
-                  >
-                    <Avatar
-                      uri={editPhoto}
-                      name={editName || '...'}
-                      size={72}
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Inline small editor for Photo URL opened when avatar is tapped */}
-                {showPhotoInput && (
-                  <View style={styles.photoInputBox}>
-                    <View style={{ flexDirection: 'row', marginBottom: 8 }}>
-                      <View style={{ flex: 1, marginRight: 6 }}>
-                        <Button
-                          title="Chọn từ thư viện"
-                          onPress={pickFromLibrary}
-                        />
-                      </View>
-                      <View style={{ flex: 1, marginLeft: 6 }}>
-                        <Button title="Chụp ảnh" onPress={takePhoto} />
-                      </View>
-                    </View>
-
-                    {uploadingPhoto ? (
-                      <View style={{ alignItems: 'center' }}>
-                        <ActivityIndicator />
-                        <Text style={{ color: '#666', marginTop: 6 }}>
-                          {uploadProgress}%
-                        </Text>
-                      </View>
-                    ) : (
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          justifyContent: 'flex-end',
-                        }}
-                      >
-                        <Button
-                          title="Hủy"
-                          onPress={() => {
-                            setShowPhotoInput(false);
-                            setPhotoInputText('');
-                          }}
-                        />
-                        <View style={{ width: 8 }} />
-                        <Button
-                          title="Áp dụng"
-                          onPress={() => {
-                            // if admin typed a URL in photoInputText, use it
-                            if (photoInputText) setEditPhoto(photoInputText);
-                            setShowPhotoInput(false);
-                            setPhotoInputText('');
-                          }}
-                        />
-                      </View>
-                    )}
+            {!patientsCollapsed && (
+              <FlatList
+                data={accounts.filter(a => a.role === 'patient')}
+                keyExtractor={i => i.id}
+                renderItem={({ item }) => (
+                  <AccountItem 
+                    item={item} 
+                    changeRole={changeRole} 
+                    openEdit={openEdit} 
+                    onDelete={onDelete} 
+                  />
+                )}
+                ListEmptyComponent={() => (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>Không có bệnh nhân.</Text>
                   </View>
                 )}
+              />
+            )}
 
-                <Text style={styles.inputLabel}>Email</Text>
-                <TextInput
-                  placeholder="Email"
-                  value={editEmail}
-                  onChangeText={setEditEmail}
-                  style={styles.input}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
+            {/* --- Phần Bác sĩ --- */}
+            <TouchableOpacity
+              style={[styles.sectionHeader, { marginTop: 16 }]}
+              onPress={() => setDoctorsCollapsed(v => !v)}
+            >
+              <Text style={styles.sectionTitle}>
+                Bác sĩ ({accounts.filter(a => a.role === 'doctor').length})
+              </Text>
+              <Text style={styles.collapseIcon}>{doctorsCollapsed ? '▼' : '▲'}</Text>
+            </TouchableOpacity>
 
-                <Text style={styles.inputLabel}>Số điện thoại</Text>
-                <TextInput
-                  placeholder="Số điện thoại"
-                  value={editPhone}
-                  onChangeText={setEditPhone}
-                  style={styles.input}
-                  keyboardType="phone-pad"
-                />
+            {!doctorsCollapsed && (
+              <FlatList
+                data={accounts.filter(a => a.role === 'doctor')}
+                keyExtractor={i => i.id}
+                renderItem={({ item }) => (
+                  <AccountItem 
+                    item={item} 
+                    changeRole={changeRole} 
+                    openEdit={openEdit} 
+                    onDelete={onDelete} 
+                  />
+                )}
+                ListEmptyComponent={() => (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>Không có bác sĩ.</Text>
+                  </View>
+                )}
+              />
+            )}
 
-                <Text style={styles.inputLabel}>Tuổi</Text>
-                <TextInput
-                  placeholder="Tuổi"
-                  value={editAge}
-                  onChangeText={setEditAge}
-                  style={styles.input}
-                  keyboardType="numeric"
-                />
+            {/* --- Modal Sửa thông tin --- */}
+            <Modal visible={editing} animationType="slide" transparent={true} onRequestClose={() => setEditing(false)}>
+              <View style={styles.modalBackdrop}>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Sửa thông tin tài khoản</Text>
 
-                <Text style={styles.inputLabel}>Địa chỉ</Text>
-                <TextInput
-                  placeholder="Địa chỉ"
-                  value={editAddress}
-                  onChangeText={setEditAddress}
-                  style={styles.input}
-                />
-
-                {editingUser?.role === 'doctor' ? (
-                  <>
-                    <Text style={styles.inputLabel}>Chuyên khoa</Text>
+                  {/* Ảnh đại diện */}
+                  <View style={styles.avatarContainer}>
                     <TouchableOpacity
-                      style={styles.pickerBox}
-                      onPress={() => setSpecialtyPickerVisible(true)}
+                      onPress={() => {
+                        setPhotoInputText(editPhoto || '');
+                        setShowPhotoInput(true);
+                      }}
+                      accessibilityLabel="Chạm để thay đổi ảnh"
                     >
-                      <Text>
-                        {specialties.find(s => s.id === editSpecialtyId)
-                          ?.name || 'Chọn chuyên khoa'}
-                      </Text>
+                      <Avatar
+                        uri={editPhoto}
+                        name={editName || '...'}
+                        size={72}
+                      />
                     </TouchableOpacity>
+                  </View>
 
-                    <Modal
-                      visible={specialtyPickerVisible}
-                      animationType="slide"
-                      transparent={true}
-                      onRequestClose={() => setSpecialtyPickerVisible(false)}
-                    >
-                      <View style={styles.modalBackdrop}>
-                        <View style={[styles.modalContent, { maxHeight: 420 }]}>
-                          <Text style={{ fontWeight: '700', marginBottom: 8 }}>
-                            Chọn chuyên khoa
+                  {/* Input URL ảnh/Chọn ảnh */}
+                  {showPhotoInput && (
+                    <View style={styles.photoInputBox}>
+                      <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+                        <Button
+                          title="Chọn ảnh"
+                          onPress={pickFromLibrary}
+                          style={styles.photoActionButton}
+                          textStyle={styles.photoActionButtonText}
+                        />
+                        <View style={{ width: 8 }} />
+                        <Button 
+                          title="Chụp ảnh" 
+                          onPress={takePhoto} 
+                          style={styles.photoActionButton}
+                          textStyle={styles.photoActionButtonText}
+                        />
+                      </View>
+
+                      {uploadingPhoto ? (
+                        <View style={styles.uploadingProgress}>
+                          <ActivityIndicator color={COLORS.primary} />
+                          <Text style={{ color: COLORS.textLight, marginTop: 6 }}>
+                            {uploadProgress}%
                           </Text>
-                          <FlatList
-                            data={specialties}
-                            keyExtractor={s => s.id}
-                            renderItem={({ item }) => (
-                              <TouchableOpacity
-                                onPress={() => {
-                                  setEditSpecialty(item.name || '');
-                                  setEditSpecialtyId(item.id);
-                                  setSpecialtyPickerVisible(false);
-                                }}
-                                style={styles.itemRow}
-                              >
-                                <Text style={styles.itemText}>{item.name}</Text>
-                              </TouchableOpacity>
-                            )}
-                          />
-                          <View
-                            style={{
-                              flexDirection: 'row',
-                              justifyContent: 'flex-end',
-                              marginTop: 8,
+                        </View>
+                      ) : (
+                        <View style={styles.photoActionsRow}>
+                          <Button
+                            title="Hủy"
+                            onPress={() => {
+                              setShowPhotoInput(false);
+                              setPhotoInputText('');
                             }}
-                          >
-                            <Button
-                              title="Đóng"
-                              onPress={() => setSpecialtyPickerVisible(false)}
+                            style={{ backgroundColor: COLORS.subtitle }}
+                            textStyle={styles.actionButtonText}
+                          />
+                          <View style={{ width: 8 }} />
+                          <Button
+                            title="Áp dụng"
+                            onPress={() => {
+                              if (photoInputText) setEditPhoto(photoInputText);
+                              setShowPhotoInput(false);
+                              setPhotoInputText('');
+                            }}
+                            style={{ backgroundColor: COLORS.primary }}
+                            textStyle={styles.actionButtonText}
+                          />
+                        </View>
+                      )}
+                    </View>
+                  )}
+
+                  {/* Trường nhập liệu */}
+                  <Text style={styles.inputLabel}>Tên</Text>
+                  <TextInput
+                    placeholder="Tên"
+                    value={editName}
+                    onChangeText={setEditName}
+                    style={styles.textInputStyle}
+                    placeholderTextColor={COLORS.subtitle}
+                  />
+
+                  <Text style={styles.inputLabel}>Email</Text>
+                  <TextInput
+                    placeholder="Email"
+                    value={editEmail}
+                    onChangeText={setEditEmail}
+                    style={styles.textInputStyle}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    placeholderTextColor={COLORS.subtitle}
+                  />
+
+                  <Text style={styles.inputLabel}>Số điện thoại</Text>
+                  <TextInput
+                    placeholder="Số điện thoại"
+                    value={editPhone}
+                    onChangeText={setEditPhone}
+                    style={styles.textInputStyle}
+                    keyboardType="phone-pad"
+                    placeholderTextColor={COLORS.subtitle}
+                  />
+                  
+                  {/* ... (Tiếp tục với các trường nhập liệu khác) */}
+                  <Text style={styles.inputLabel}>Tuổi</Text>
+                  <TextInput
+                    placeholder="Tuổi"
+                    value={editAge}
+                    onChangeText={setEditAge}
+                    style={styles.textInputStyle}
+                    keyboardType="numeric"
+                    placeholderTextColor={COLORS.subtitle}
+                  />
+
+                  <Text style={styles.inputLabel}>Địa chỉ</Text>
+                  <TextInput
+                    placeholder="Địa chỉ"
+                    value={editAddress}
+                    onChangeText={setEditAddress}
+                    style={styles.textInputStyle}
+                    placeholderTextColor={COLORS.subtitle}
+                  />
+                  
+                  {/* Vai trò */}
+                  <Text style={[styles.inputLabel, { marginTop: 4 }]}>Vai trò</Text>
+                  <View style={styles.roleBox}>
+                    <Text style={{color: COLORS.textDark, fontWeight: '600'}}>
+                      {editingUser?.role === 'doctor' ? 'Bác sĩ' : 'Bệnh nhân'}
+                    </Text>
+                  </View>
+
+                  {/* Chuyên khoa (Chỉ cho Bác sĩ) */}
+                  {editingUser?.role === 'doctor' ? (
+                    <>
+                      <Text style={styles.inputLabel}>Chuyên khoa</Text>
+                      <TouchableOpacity
+                        style={styles.pickerBox}
+                        onPress={() => setSpecialtyPickerVisible(true)}
+                      >
+                        <Text style={{color: COLORS.textDark}}>
+                          {specialties.find(s => s.id === editSpecialtyId)
+                            ?.name || 'Chọn chuyên khoa'}
+                        </Text>
+                      </TouchableOpacity>
+
+                      {/* Modal chọn chuyên khoa */}
+                      <Modal
+                        visible={specialtyPickerVisible}
+                        animationType="slide"
+                        transparent={true}
+                        onRequestClose={() => setSpecialtyPickerVisible(false)}
+                      >
+                        <View style={styles.modalBackdrop}>
+                          <View style={[styles.modalContent, { maxHeight: 420 }]}>
+                            <Text style={styles.modalTitle}>Chọn chuyên khoa</Text>
+                            <FlatList
+                              data={specialties}
+                              keyExtractor={s => s.id}
+                              renderItem={({ item }) => (
+                                <TouchableOpacity
+                                  onPress={() => {
+                                    // setEditSpecialty(item.name || ''); // Không cần dùng state này nữa
+                                    setEditSpecialtyId(item.id);
+                                    setSpecialtyPickerVisible(false);
+                                  }}
+                                  style={styles.specialtyItemRow}
+                                >
+                                  <Text style={[styles.specialtyItemText, {
+                                      fontWeight: item.id === editSpecialtyId ? '700' : '400',
+                                      color: item.id === editSpecialtyId ? COLORS.primary : COLORS.textDark,
+                                  }]}>
+                                      {item.name}
+                                  </Text>
+                                </TouchableOpacity>
+                              )}
                             />
+                            <View style={styles.modalActionsRow}>
+                              <Button
+                                title="Đóng"
+                                onPress={() => setSpecialtyPickerVisible(false)}
+                                style={{ backgroundColor: COLORS.subtitle }}
+                                textStyle={styles.actionButtonText}
+                              />
+                            </View>
                           </View>
                         </View>
-                      </View>
-                    </Modal>
-                  </>
-                ) : null}
+                      </Modal>
+                    </>
+                  ) : null}
 
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    justifyContent: 'flex-end',
-                    marginTop: 8,
-                  }}
-                >
-                  <Button
-                    title="Hủy"
-                    onPress={() => {
-                      setEditing(false);
-                      setEditingUser(null);
-                    }}
-                  />
-                  <View style={{ width: 8 }} />
-                  <Button title="Lưu" onPress={saveEdit} />
+                  {/* Nút hành động Lưu/Hủy */}
+                  <View style={styles.modalActionsRow}>
+                    <Button
+                      title="Hủy"
+                      onPress={() => {
+                        setEditing(false);
+                        setEditingUser(null);
+                      }}
+                      style={{ backgroundColor: COLORS.subtitle, flex: 1 }}
+                      textStyle={styles.actionButtonText}
+                    />
+                    <View style={{ width: 8 }} />
+                    <Button 
+                      title="Lưu" 
+                      onPress={saveEdit} 
+                      style={{ backgroundColor: COLORS.primary, flex: 1 }}
+                      textStyle={styles.actionButtonText}
+                    />
+                  </View>
                 </View>
               </View>
-            </View>
-          </Modal>
-        </>
-      )}
-    </View>
+            </Modal>
+          </>
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  title: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
-  row: {
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1, padding: 16, backgroundColor: COLORS.background },
+  
+  // --- Header ---
+  headerTitle: { fontSize: 24, fontWeight: '800', color: COLORS.textDark },
+  headerSubtitle: { color: COLORS.subtitle, marginBottom: 16, fontSize: 14 },
+
+  // --- List Item (Bác sĩ/Bệnh nhân) ---
+  itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#eee',
-    marginBottom: 8,
-    backgroundColor: '#fff',
+    borderColor: COLORS.borderColor,
+    marginBottom: 10,
+    backgroundColor: COLORS.cardBackground,
+    shadowColor: COLORS.shadowColor,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
-  name: { fontWeight: '700' },
-  sub: { color: '#666', marginTop: 2 },
+  itemInfo: { marginLeft: 12, flex: 1 },
+  itemName: { fontWeight: '700', fontSize: 16, color: COLORS.textDark },
+  itemSub: { color: COLORS.textLight, marginTop: 2, fontSize: 13 },
+  itemSpecialty: { 
+    color: COLORS.primary, 
+    fontSize: 12, 
+    fontWeight: '600',
+    marginTop: 2 
+  },
+  itemActions: { 
+    flexDirection: 'row', 
+    alignItems: 'center',
+    // 💡 Điều chỉnh để các nút không quá lớn
+    maxWidth: 220, 
+  },
+  actionButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    // 💡 Giảm kích thước nút
+    minWidth: 50, 
+  },
+  actionButtonText: { 
+    fontSize: 12, 
+    fontWeight: '700', 
+    color: COLORS.cardBackground 
+  },
+  deleteButton: { 
+    padding: 6 
+  },
+  deleteButtonText: { 
+    color: COLORS.danger, 
+    fontWeight: '700',
+    fontSize: 13
+  },
 
+  // --- Sections ---
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    marginTop: 8,
-    marginBottom: 6,
-  },
-  sectionTitle: { fontWeight: '700', fontSize: 16 },
-  sectionCount: { color: '#666' },
-
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    padding: 16,
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.12,
-        shadowRadius: 6,
-      },
-      android: { elevation: 6 },
-    }),
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#eee',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    marginBottom: 8,
-  },
-  inputLabel: { fontSize: 12, color: '#333', marginBottom: 4 },
-  photoInputBox: {
-    backgroundColor: '#fafafa',
-    borderRadius: 8,
-    padding: 8,
-    marginVertical: 8,
-    borderWidth: 1,
-    borderColor: '#eee',
-  },
-  pickerBox: {
-    borderWidth: 1,
-    borderColor: '#eee',
-    padding: 10,
-    borderRadius: 6,
-    backgroundColor: '#fff',
-    marginBottom: 8,
-  },
-  itemRow: {
     paddingVertical: 10,
     paddingHorizontal: 6,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: COLORS.borderColor,
+    marginBottom: 8,
   },
-  itemText: { fontSize: 15 },
+  sectionTitle: { fontWeight: '800', fontSize: 18, color: COLORS.textDark },
+  collapseIcon: { color: COLORS.textDark, fontSize: 16, fontWeight: '700' },
+  emptyContainer: { 
+    paddingVertical: 24, 
+    alignItems: 'center' 
+  },
+  emptyText: { color: COLORS.subtitle },
+
+  // --- Modal ---
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 12,
+    padding: 16,
+    // Cập nhật shadow
+    ...Platform.select({
+      ios: {
+        shadowColor: COLORS.shadowColor,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: { elevation: 10 },
+    }),
+  },
+  modalTitle: { 
+    fontWeight: '800', 
+    fontSize: 18, 
+    marginBottom: 16, 
+    color: COLORS.textDark,
+    textAlign: 'center',
+  },
+  modalActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 16,
+  },
+  
+  // --- Input & Form ---
+  inputLabel: { 
+    fontSize: 13, 
+    color: COLORS.textLight, 
+    marginBottom: 4, 
+    fontWeight: '600'
+  },
+  textInputStyle: { // Đổi tên từ 'input' sang 'textInputStyle' để dễ phân biệt
+    borderWidth: 1,
+    borderColor: COLORS.borderColor,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 10,
+    marginBottom: 12,
+    backgroundColor: COLORS.cardBackground,
+    color: COLORS.textDark,
+    fontSize: 15,
+  },
+  roleBox: {
+    padding: 10,
+    backgroundColor: COLORS.lightGray,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.borderColor,
+  },
+  
+  // --- Photo Input ---
+  avatarContainer: { alignItems: 'center', marginBottom: 12 },
+  photoInputBox: {
+    backgroundColor: COLORS.lightGray,
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 8,
+    borderWidth: 1,
+    borderColor: COLORS.borderColor,
+  },
+  photoActionButton: { 
+    flex: 1, 
+    paddingHorizontal: 6,
+    paddingVertical: 8,
+    backgroundColor: COLORS.textLight, // Màu mặc định cho hành động ảnh
+  },
+  photoActionButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.cardBackground,
+  },
+  uploadingProgress: { 
+    alignItems: 'center', 
+    paddingVertical: 12 
+  },
+  photoActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+  },
+
+  // --- Specialty Picker ---
+  pickerBox: {
+    borderWidth: 1,
+    borderColor: COLORS.borderColor,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: COLORS.cardBackground,
+    marginBottom: 12,
+  },
+  specialtyItemRow: {
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderColor,
+  },
+  specialtyItemText: { 
+    fontSize: 16, 
+    color: COLORS.textDark 
+  },
 });

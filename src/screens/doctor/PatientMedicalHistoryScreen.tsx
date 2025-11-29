@@ -1,4 +1,4 @@
-// screens/DoctorHistoryScreen.tsx
+// screens/doctor/PatientMedicalHistoryScreen.tsx
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View,
@@ -9,14 +9,20 @@ import {
   Pressable,
   TextInput,
   ActivityIndicator,
-  SafeAreaView, 
+  SafeAreaView,
 } from 'react-native';
-import { useNavigation, NavigationProp } from '@react-navigation/native'; // 🌟 THÊM IMPORT NAVIGATION
+import { useRoute, useNavigation, NavigationProp, RouteProp } from '@react-navigation/native';
 import Icon from '@react-native-vector-icons/feather';
 import db from '@/services/firestore';
 import { useAuth } from '@/context/AuthContext';
 
-// --- Global Functions (Giữ nguyên) ---
+// Định nghĩa kiểu dữ liệu cho Route (giúp TypeScript hoạt động tốt)
+type PatientMedicalHistoryRouteProp = RouteProp<
+  { PatientMedicalHistory: { focusedPatientId: string } },
+  'PatientMedicalHistory'
+>;
+
+// --- Global Functions (Sử dụng lại) ---
 
 const toIso = (v: any) => {
   if (!v) return null;
@@ -30,7 +36,7 @@ const toIso = (v: any) => {
 };
 const VNCurrency = (n: any) => (Number(n) || 0).toLocaleString('vi-VN') + '₫';
 
-// --- Color Palette mới ---
+// --- Color Palette mới (Sử dụng lại) ---
 const COLORS = {
   primary: '#1976D2', 
   background: '#F4F7F9', 
@@ -44,23 +50,41 @@ const COLORS = {
 
 // --- Component Chính ---
 
-export default function DoctorHistoryScreen() {
-  const { user } = useAuth() as any;
-  // 🌟 KHỞI TẠO NAVIGATION
-  const navigation = useNavigation<NavigationProp<any>>();
+export default function PatientMedicalHistoryScreen() {
+  // 🌟 Lấy patientId từ route params
+  const route = useRoute<PatientMedicalHistoryRouteProp>();
+  const focusedPatientId = route.params?.focusedPatientId;
 
+  const navigation = useNavigation<NavigationProp<any>>();
   const [items, setItems] = useState<any[]>([]);
-  const [patientsMap, setPatientsMap] = useState<Record<string, any>>({});
+  // 🌟 Đổi tên map thành doctorsMap để lưu trữ thông tin bác sĩ
+  const [doctorsMap, setDoctorsMap] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
+  const [patientProfile, setPatientProfile] = useState<any>(null); // Để hiển thị tên bệnh nhân
   const [q, setQ] = useState('');
 
+  // 🌟 HÀM TẢI DỮ LIỆU ĐÃ ĐIỀU CHỈNH VÀ SỬA LỖI
   const load = useCallback(async () => {
-    if (!user) return;
+    if (!focusedPatientId) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
+      // 1. Tải thông tin bệnh nhân (để hiển thị tiêu đề)
+      const pdoc = await db.collection('users').doc(focusedPatientId).get();
+      
+      // 🌟 SỬA LỖI GẠCH ĐỎ: Kiểm tra dữ liệu trả về tồn tại
+      const patientData = pdoc.data();
+      if (patientData) {
+        setPatientProfile({ id: pdoc.id, ...patientData });
+      }
+
+      // 2. Query lịch sử khám bệnh của bệnh nhân đó
       const snap = await db
         .collection('appointments')
-        .where('doctorId', '==', user.uid)
+        .where('patientId', '==', focusedPatientId)
         .get();
 
       const all = snap.docs
@@ -71,26 +95,27 @@ export default function DoctorHistoryScreen() {
 
       setItems(all);
 
-      const ids = Array.from(
-        new Set(all.map(i => i.patientId).filter(Boolean)),
+      // 3. Tải thông tin các Bác sĩ đã khám cho bệnh nhân
+      const doctorIds = Array.from(
+        new Set(all.map(i => i.doctorId).filter(Boolean)),
       );
-      if (ids.length) {
+      if (doctorIds.length) {
         const docs = await Promise.all(
-          ids.map(id => db.collection('users').doc(id).get()),
+          doctorIds.map(id => db.collection('users').doc(id).get()),
         );
         const m: Record<string, any> = {};
         docs.forEach(d => {
           const dd = d.data();
           if (dd) m[d.id] = dd;
         });
-        setPatientsMap(m);
+        setDoctorsMap(m);
       }
     } catch (err) {
-      console.warn('load doctor history failed', err);
+      console.warn('load patient history failed', err);
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [focusedPatientId]);
 
   useEffect(() => {
     load();
@@ -100,27 +125,29 @@ export default function DoctorHistoryScreen() {
     const needle = q.trim().toLowerCase();
     if (!needle) return items;
     return items.filter(it => {
-      const p = patientsMap[it.patientId];
-      const name = (p?.name || it.patientId || '').toLowerCase();
+      const d = doctorsMap[it.doctorId];
+      const name = (d?.name || it.doctorId || '').toLowerCase();
       const svc = (it.meta?.serviceName || '').toLowerCase();
       return name.includes(needle) || svc.includes(needle);
     });
-  }, [items, q, patientsMap]);
+  }, [items, q, doctorsMap]);
   
-  // 🌟 HÀM ĐIỀU HƯỚNG ĐẾN CHI TIẾT LỊCH KHÁM
+  // 🌟 HÀM XEM CHI TIẾT LỊCH KHÁM
   const handlePressDetail = (appointmentId: string) => {
-    // Điều hướng đến màn hình AppointmentDetail, truyền ID lịch khám
+    // Điều hướng đến AppointmentDetail, truyền ID lịch khám
     navigation.navigate('AppointmentDetail', { appointmentId: appointmentId });
   };
 
+  const patientName = patientProfile?.name || focusedPatientId || 'Bệnh nhân';
 
   const renderItem = ({ item }: { item: any }) => {
-    const patient = patientsMap[item.patientId];
-    const name = patient?.name || item.patientId || 'Bệnh nhân';
-    const photo = patient?.photoURL;
+    // 🌟 Lấy thông tin Bác sĩ
+    const doctor = doctorsMap[item.doctorId];
+    const name = doctor?.name || item.doctorId || 'Bác sĩ';
+    const photo = doctor?.photoURL;
     const initials = (() => {
       const parts = (name || '').trim().split(/\s+/);
-      if (!parts.length) return 'BN';
+      if (!parts.length) return 'BS';
       return (
         parts.length === 1
           ? parts[0].slice(0, 2)
@@ -142,18 +169,16 @@ export default function DoctorHistoryScreen() {
     const service = item.meta?.serviceName || 'Dịch vụ khám';
 
     return (
-      // 🌟 THÊM SỰ KIỆN onPress VÀO Pressable ĐỂ XEM CHI TIẾT
       <Pressable
         style={({ pressed }) => [
           styles.card,
           pressed && { opacity: 0.96, transform: [{ scale: 0.995 }] },
         ]}
-        // GỌI HÀM ĐIỀU HƯỚNG, TRUYỀN ID LỊCH KHÁM
-        onPress={() => handlePressDetail(item.id)} 
+        onPress={() => handlePressDetail(item.id)} // 🌟 THÊM ONPRESS
         android_ripple={{ color: 'rgba(0,0,0,0.05)' }}
       >
         <View style={styles.cardContent}>
-          {/* Cột trái: Avatar + Tên */}
+          {/* Cột trái: Avatar + Tên Bác sĩ */}
           <View style={styles.patientInfo}>
             {photo ? (
               <Image source={{ uri: photo }} style={styles.avatar} />
@@ -206,38 +231,45 @@ export default function DoctorHistoryScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
       <View style={styles.container}>
-        <Text style={styles.title}>Lịch sử đã khám</Text>
-        <View style={styles.searchContainer}>
-          <Icon name="search" size={20} color={COLORS.textMuted} style={{ marginRight: 8 }} />
-          <TextInput
-            value={q}
-            onChangeText={setQ}
-            placeholder="Tìm theo tên bệnh nhân hoặc dịch vụ..."
-            placeholderTextColor={COLORS.textMuted}
-            style={styles.search}
-          />
-        </View>
-
-        {loading ? (
-          <ActivityIndicator style={{ marginTop: 20 }} color={COLORS.primary} size="large" />
-        ) : filtered.length === 0 ? (
-          <Text style={styles.empty}>Không tìm thấy lịch sử khám bệnh nào đã hoàn thành.</Text>
+        <Text style={styles.title}>Lịch sử khám của {patientName}</Text>
+        
+        {!focusedPatientId ? (
+            <Text style={styles.empty}>Không tìm thấy ID bệnh nhân.</Text>
         ) : (
-          <FlatList
-            data={filtered}
-            keyExtractor={i => i.id}
-            renderItem={renderItem}
-            contentContainerStyle={{ paddingBottom: 24, paddingTop: 10 }}
-            ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-            showsVerticalScrollIndicator={false}
-          />
+          <>
+            <View style={styles.searchContainer}>
+              <Icon name="search" size={20} color={COLORS.textMuted} style={{ marginRight: 8 }} />
+              <TextInput
+                value={q}
+                onChangeText={setQ}
+                placeholder="Tìm theo tên bác sĩ hoặc dịch vụ..."
+                placeholderTextColor={COLORS.textMuted}
+                style={styles.search}
+              />
+            </View>
+
+            {loading ? (
+              <ActivityIndicator style={{ marginTop: 20 }} color={COLORS.primary} size="large" />
+            ) : filtered.length === 0 ? (
+              <Text style={styles.empty}>Bệnh nhân này chưa có lịch sử khám bệnh nào đã hoàn thành.</Text>
+            ) : (
+              <FlatList
+                data={filtered}
+                keyExtractor={i => i.id}
+                renderItem={renderItem}
+                contentContainerStyle={{ paddingBottom: 24, paddingTop: 10 }}
+                ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+                showsVerticalScrollIndicator={false}
+              />
+            )}
+          </>
         )}
       </View>
     </SafeAreaView>
   );
 }
 
-// --- Stylesheet mới (Giữ nguyên) ---
+// --- Stylesheet (Giữ nguyên) ---
 
 const AVATAR = 50;
 

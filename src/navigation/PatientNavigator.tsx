@@ -21,62 +21,110 @@ export default function PatientNavigator() {
       <Stack.Screen
         name="PatientHome"
         component={PatientHome}
-        options={{ title: 'Trang bệnh nhân' }}
+        options={{ title: 'Bệnh nhân',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="Profile"
         component={ProfileScreen}
-        options={{ title: 'Hồ sơ' }}
+        options={{ title: 'Hồ sơ',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="Appointments"
         component={AppointmentsScreen}
-        options={{ title: 'Lịch đã đặt' }}
+        options={{ title: 'Lịch đã đặt',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="AppointmentDetail"
         component={AppointmentDetail}
-        options={{ title: 'Chi tiết lịch đã đặt' }}
+        options={{ title: 'Chi tiết lịch đã đặt',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="ListDoctor"
         component={ListDoctor}
-        options={{ title: 'Danh sách khoa và bác sĩ' }}
+        options={{ title: 'Danh sách khoa và bác sĩ',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="MedicalHistory"
         component={MedicalHistoryScreen}
-        options={{ title: 'Hồ sơ bệnh án' }}
+        options={{ title: 'Hồ sơ bệnh án',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="MedicalRecordDetail"
         component={MedicalRecordDetail}
-        options={{ title: 'Chi tiết hồ sơ' }}
+        options={{ title: 'Chi tiết hồ sơ',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="Invoices"
         component={InvoicesScreen}
-        options={{ title: 'Hóa đơn' }}
+        options={{ title: 'Hóa đơn',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="InvoiceDetail"
         component={InvoiceDetail}
-        options={{ title: 'Hóa đơn' }}
+        options={{ title: 'Hóa đơn',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="Settings"
         component={SettingsScreen}
-        options={{ title: 'Cài đặt' }}
+        options={{ title: 'Cài đặt',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="Book"
         component={BookScreen}
-        options={{ title: 'Đặt lịch' }}
+        options={{ title: 'Đặt lịch',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="BookingConfirm"
         component={BookingConfirm}
-        options={{ title: 'Xác nhận' }}
+        options={{ title: 'Xác nhận',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
     </Stack.Navigator>
   );

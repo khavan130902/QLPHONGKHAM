@@ -9,22 +9,23 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Keyboard,
+  Alert, // Thêm Alert để xác nhận
 } from 'react-native';
 import Button from '@/components/Button';
 import db from '@/services/firestore';
 import { useAuth } from '@/context/AuthContext';
 import safeAlert from '@/utils/safeAlert';
+import Icon from '@react-native-vector-icons/feather'; // Thêm Icon để trang trí nút
 
 type Note = {
   text: string;
   authorId: string;
-  authorName?: string | null; // cho phép null, tránh undefined
-  createdAt: string; // ISO string
+  authorName?: string | null;
+  createdAt: string;
 };
 
 type KV = { label: string; value?: string | number | null };
 
-/** Utils: loại bỏ mọi undefined trong object/array (đệ quy) */
 function stripUndefined<T>(val: T): T {
   if (Array.isArray(val)) {
     // @ts-ignore
@@ -33,7 +34,7 @@ function stripUndefined<T>(val: T): T {
   if (val && typeof val === 'object') {
     const out: any = {};
     Object.entries(val as any).forEach(([k, v]) => {
-      if (v === undefined) return; // bỏ key undefined
+      if (v === undefined) return;
       if (v && typeof v === 'object') out[k] = stripUndefined(v);
       else out[k] = v;
     });
@@ -42,7 +43,6 @@ function stripUndefined<T>(val: T): T {
   return val;
 }
 
-/** Parse tiền từ number/string có dấu phẩy, ký tự tiền */
 function parseMoney(n?: number | string | null): number {
   if (typeof n === 'number') return isFinite(n) ? n : 0;
   if (typeof n === 'string') {
@@ -62,7 +62,6 @@ export default function AppointmentDetail({ route, navigation }: any) {
   const [roomsMap, setRoomsMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
-  // notes list
   const [notes, setNotes] = useState<Note[]>([]);
   const [notesInput, setNotesInput] = useState('');
   const [saving, setSaving] = useState(false);
@@ -74,10 +73,7 @@ export default function AppointmentDetail({ route, navigation }: any) {
       try {
         if (!appointmentId) return;
 
-        const doc = await db
-          .collection('appointments')
-          .doc(appointmentId)
-          .get();
+        const doc = await db.collection('appointments').doc(appointmentId).get();
         if (!mounted) return;
 
         if (!doc.exists) {
@@ -89,7 +85,6 @@ export default function AppointmentDetail({ route, navigation }: any) {
         const appt = { id: doc.id, ...apptData };
         setAppointment(appt);
 
-        // notes: chuyển về mảng nếu đang là string/undefined
         const rawNotes = apptData?.notes;
         if (Array.isArray(rawNotes)) {
           setNotes(stripUndefined(rawNotes as Note[]));
@@ -109,7 +104,6 @@ export default function AppointmentDetail({ route, navigation }: any) {
           setNotes([]);
         }
 
-        // patient
         const pid = apptData?.patientId;
         if (pid) {
           const pdoc = await db.collection('users').doc(pid).get();
@@ -117,7 +111,6 @@ export default function AppointmentDetail({ route, navigation }: any) {
             setPatientProfile({ id: pdoc.id, ...(pdoc.data() as any) });
         }
 
-        // rooms map
         try {
           const snap = await db.collection('rooms').get();
           if (!mounted) return;
@@ -149,7 +142,7 @@ export default function AppointmentDetail({ route, navigation }: any) {
     const newNote: Note = {
       text: body,
       authorId: user?.uid || '',
-      authorName: user?.displayName ?? user?.email ?? null, // null, không undefined
+      authorName: user?.displayName ?? user?.email ?? null,
       createdAt: new Date().toISOString(),
     };
 
@@ -158,18 +151,12 @@ export default function AppointmentDetail({ route, navigation }: any) {
 
       const ref = db.collection('appointments').doc(appointmentId);
 
-      // đọc mảng notes hiện tại
       const snap = await ref.get();
       const data = snap.data() || {};
       const prevRaw = Array.isArray(data.notes) ? (data.notes as any[]) : [];
-
-      // chuẩn hoá các phần tử cũ (bỏ undefined)
       const prev: Note[] = prevRaw.map(it => stripUndefined(it));
-
-      // thêm note mới (mới nhất lên trước)
       const updated = [stripUndefined(newNote), ...prev];
 
-      // dùng set merge và luôn stripUndefined trước khi ghi
       await ref.set(stripUndefined({ notes: updated }), { merge: true });
 
       setNotes(updated);
@@ -191,20 +178,44 @@ export default function AppointmentDetail({ route, navigation }: any) {
   async function cancelAppointment() {
     if (!appointmentId) return;
     try {
-      await db.collection('appointments').doc(appointmentId).update({
-        status: 'cancelled',
-        cancelledBy: user?.uid,
-        cancelledAt: new Date().toISOString(),
-      });
-      safeAlert('Đã hủy', 'Đã hủy lịch');
-      navigation.goBack();
+      // 🌟 THÊM ALERT XÁC NHẬN TRƯỚC KHI HỦY
+      Alert.alert(
+        'Xác nhận hủy lịch',
+        'Bạn có chắc chắn muốn hủy lịch hẹn này không? Hành động này không thể hoàn tác.',
+        [
+          { text: 'Hủy', style: 'cancel' },
+          {
+            text: 'Đồng ý',
+            onPress: async () => {
+              await db.collection('appointments').doc(appointmentId).update({
+                status: 'cancelled',
+                cancelledBy: user?.uid,
+                cancelledAt: new Date().toISOString(),
+              });
+              safeAlert('Đã hủy', 'Đã hủy lịch hẹn thành công.');
+              navigation.goBack();
+            },
+            style: 'destructive',
+          },
+        ]
+      );
     } catch (e) {
       console.warn('cancelAppointment', e);
       safeAlert('Lỗi', 'Hủy lịch thất bại');
     }
   }
 
-  // --------- Helpers ----------
+  // 🌟 HÀM ĐIỀU HƯỚNG ĐẾN LỊCH SỬ KHÁM BỆNH CỦA BỆNH NHÂN
+  function goToPatientHistory() {
+    const patientId = appointment?.patientId;
+
+    if (!patientId) {
+      return safeAlert('Thông báo', 'Không có ID bệnh nhân để truy vấn lịch sử.');
+    }
+    navigation.navigate('PatientMedicalHistory', { focusedPatientId: patientId }); 
+    
+  }
+
   const formatMoney = (n?: number | string | null) =>
     `${(parseMoney(n) || 0).toLocaleString('vi-VN')}₫`;
 
@@ -305,6 +316,23 @@ export default function AppointmentDetail({ route, navigation }: any) {
         </View>
 
         <KVRow label="Bệnh nhân" value={patientLine} />
+        
+        {/* 🌟 NÚT XEM LỊCH SỬ BỆNH NHÂN */}
+        {appointment.patientId && (
+            <TouchableOpacity 
+                onPress={goToPatientHistory}
+                style={styles.historyButton}
+                activeOpacity={0.8}
+            >
+                <Icon name="file-text" size={16} color="#FFFFFF" />
+                <Text style={styles.historyButtonText}>
+                    Xem Hồ Sơ Bệnh Nhân
+                </Text>
+            </TouchableOpacity>
+        )}
+        {/* 🌟 HẾT NÚT XEM LỊCH SỬ BỆNH NHÂN */}
+        
+        <View style={styles.divider} /> 
         <KVRow label="Phòng" value={roomName} />
         <KVRow label="Bắt đầu / Kết thúc" value={`${startStr} — ${endStr}`} />
         <View style={styles.divider} />
@@ -336,7 +364,7 @@ export default function AppointmentDetail({ route, navigation }: any) {
         ) : null}
       </View>
 
-      {/* Ghi chú (list) */}
+      {/* Ghi chú */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Ghi chú bác sĩ</Text>
 
@@ -387,14 +415,18 @@ export default function AppointmentDetail({ route, navigation }: any) {
       <View style={[styles.card, { gap: 8 }]}>
         <Text style={styles.cardTitle}>Hành động</Text>
         <TouchableOpacity activeOpacity={0.8}>
-          <Button title="Hủy lịch" onPress={cancelAppointment} />
+          <Button
+            title="Hủy lịch"
+            onPress={cancelAppointment}
+            style={styles.cancelButton}
+            textStyle={styles.cancelButtonText}
+          />
         </TouchableOpacity>
       </View>
     </ScrollView>
   );
 }
 
-/** --------- Presentational --------- */
 function KVRow({
   label,
   value,
@@ -418,77 +450,128 @@ function KVRow({
   );
 }
 
-/** --------- Styles --------- */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F6F8' },
+  container: { flex: 1, backgroundColor: '#F2FBFD' },
   center: { justifyContent: 'center', alignItems: 'center' },
-
   title: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginBottom: 12,
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#155E75',
+    marginBottom: 16,
+    textAlign: 'center',
+    letterSpacing: 0.5,
   },
-
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 6,
-    elevation: 2,
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(37,150,190,0.08)',
+    shadowColor: '#2596be',
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 3,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  cardTitle: { fontWeight: '800', color: '#0F172A' },
-
-  divider: { height: 1, backgroundColor: '#EEF2F7', marginVertical: 10 },
-
+  cardTitle: {
+    fontWeight: '800',
+    color: '#1E293B',
+    fontSize: 17,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2596be',
+    paddingLeft: 8,
+  },
+  divider: { height: 1, backgroundColor: '#E0F2FE', marginVertical: 12 },
   kvRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 16,
     paddingVertical: 6,
   },
   kvLabel: { color: '#475569', fontWeight: '700', maxWidth: '45%' },
   kvValue: { color: '#0F172A', flex: 1, textAlign: 'right', fontWeight: '600' },
-  kvValueStrong: { color: '#2563EB' },
-
-  subtleLabel: { color: '#64748B', fontWeight: '700', marginBottom: 6 },
-
+  kvValueStrong: { color: '#2596be' },
+  subtleLabel: {
+    color: '#64748B',
+    fontWeight: '700',
+    marginBottom: 6,
+    fontSize: 13,
+  },
   textarea: {
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    padding: 10,
-    borderRadius: 10,
-    backgroundColor: '#F9FAFB',
-    marginBottom: 10,
-    minHeight: 110,
+    borderWidth: 1.2,
+    borderColor: '#CFE9F3',
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: '#F9FEFF',
+    minHeight: 100,
+    fontSize: 15,
   },
-
-  // notes list
   noteItem: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
+    backgroundColor: '#E6F7FB',
+    borderRadius: 14,
     padding: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2596be',
   },
-  noteAuthor: { fontWeight: '700', color: '#0F172A' },
-  noteTime: { color: '#64748B', marginLeft: 8 },
-  noteText: { color: '#0F172A', marginTop: 6 },
-
-  // pills
-  pillBase: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
-  pillText: { fontSize: 12, fontWeight: '800', color: '#0F172A' },
-  pillPending: { backgroundColor: '#FEF3C7' },
-  pillAccepted: { backgroundColor: '#DBEAFE' },
-  pillCompleted: { backgroundColor: '#DCFCE7' },
-  pillCancelled: { backgroundColor: '#FEE2E2' },
+  noteAuthor: { fontWeight: '700', color: '#155E75' },
+  noteTime: { color: '#64748B', fontSize: 12 },
+  noteText: { color: '#0F172A', marginTop: 6, lineHeight: 20 },
+  pillBase: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  pillText: { fontSize: 12, fontWeight: '800', color: '#1E293B' },
+  pillPending: { backgroundColor: '#FFF8E1' },
+  pillAccepted: { backgroundColor: '#D7F3FE' },
+  pillCompleted: { backgroundColor: '#E6FAEE' },
+  pillCancelled: { backgroundColor: '#FFEAEA' },
   pillNeutral: { backgroundColor: '#E2E8F0' },
+
+  cancelButton: {
+    backgroundColor: '#EF4444',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  cancelButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 16,
+    textTransform: 'uppercase',
+  },
+  
+  // 🌟 STYLE MỚI CHO NÚT XEM LỊCH SỬ BỆNH NHÂN
+  historyButton: {
+    backgroundColor: '#2596be',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 10,
+    borderRadius: 10,
+    marginTop: 10,
+    marginBottom: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  historyButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    marginLeft: 8,
+    fontSize: 15,
+  },
 });

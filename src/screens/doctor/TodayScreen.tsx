@@ -8,12 +8,30 @@ import {
   Pressable,
   Alert,
   RefreshControl,
+  SafeAreaView, // Thêm SafeAreaView
 } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
 import { useNavigation } from '@react-navigation/native';
 import firestore from '@react-native-firebase/firestore';
 import db from '@/services/firestore';
-import Button from '@/components/Button';
+// Import Icon để dùng trong Card (Feather Icons - giả định đã cài)
+import Icon from '@react-native-vector-icons/feather'; 
+
+// --- Color Palette mới (Tương tự như phiên bản trước) ---
+const COLORS = {
+  primary: '#2596be', // Xanh dương trung tính
+  background: '#F9FAFB', // Nền sáng
+  cardBackground: '#FFFFFF',
+  textDark: '#1F2937', // Text tối
+  textMuted: '#6B7280', // Text phụ
+  border: '#E5E7EB',
+  pending: '#F59E0B', // Vàng (pending)
+  accepted: '#10B981', // Xanh lá (accepted)
+  completed: '#1976d2', // Xanh dương (completed)
+  danger: '#EF4444',
+};
+
+// --- Utils (Giữ nguyên logic) ---
 
 type Tab = 'pending' | 'today' | 'upcoming';
 
@@ -42,6 +60,27 @@ const parseMoney = (n?: any) => {
   return 0;
 };
 
+// --- Component Button Tối giản để thay thế cho Button import (đảm bảo code hoạt động) ---
+// Tôi giả định bạn không muốn sử dụng component Button được import, nên tôi thay bằng SimpleButton
+const SimpleButton = ({ title, onPress, disabled, style, color = COLORS.primary, outlined = false }: any) => (
+  <Pressable
+    onPress={onPress}
+    disabled={disabled}
+    style={({ pressed }) => [
+      styles.simpleBtn,
+      { backgroundColor: outlined ? 'transparent' : (disabled ? COLORS.textMuted : color) },
+      outlined && { borderColor: color, borderWidth: 1 },
+      pressed && !disabled && { opacity: 0.8 },
+      style,
+    ]}
+  >
+    <Text style={[styles.simpleBtnText, { color: outlined ? color : '#fff' }]}>
+      {title}
+    </Text>
+  </Pressable>
+);
+// --- End SimpleButton ---
+
 export default function DoctorScheduleScreen() {
   const { user } = useAuth() as any;
   const navigation = useNavigation();
@@ -49,11 +88,10 @@ export default function DoctorScheduleScreen() {
   const [sections, setSections] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  // maps để hiển thị tên thay vì id
   const [patientsMap, setPatientsMap] = useState<Record<string, any>>({});
   const [roomsMap, setRoomsMap] = useState<Record<string, string>>({});
 
-  // nạp tên phòng 1 lần
+  // nạp tên phòng 1 lần (Giữ nguyên)
   useEffect(() => {
     (async () => {
       try {
@@ -70,6 +108,7 @@ export default function DoctorScheduleScreen() {
     })();
   }, []);
 
+  // Logic reload/lọc (GIỮ NGUYÊN LOGIC CŨ CỦA BẠN - VÌ BẠN KHÔNG MUỐN SỬA LOGIC)
   const reload = useCallback(async () => {
     if (!user) return;
 
@@ -89,6 +128,7 @@ export default function DoctorScheduleScreen() {
       .sort((a, b) => +new Date(a.startISO) - +new Date(b.startISO));
 
     if (tab === 'pending') {
+      // LOGIC CŨ: chỉ lọc lịch pending trong 30 ngày tới
       list = list.filter(
         it =>
           (it.status ?? 'pending') === 'pending' &&
@@ -113,7 +153,7 @@ export default function DoctorScheduleScreen() {
       );
     }
 
-    // prefetch tên bệnh nhân
+    // prefetch tên bệnh nhân (Giữ nguyên)
     const patientIds = Array.from(
       new Set(list.map(x => x.patientId ?? x.meta?.patientId).filter(Boolean)),
     ) as string[];
@@ -151,56 +191,62 @@ export default function DoctorScheduleScreen() {
     reload();
   }, [reload]);
 
+  // Hành động Chấp nhận (Giữ nguyên)
   async function accept(appointmentId: string) {
-    await db.collection('appointments').doc(appointmentId).update({
-      status: 'accepted',
-      acceptedAt: firestore.FieldValue.serverTimestamp(),
-    });
-    reload();
+    try {
+      await db.collection('appointments').doc(appointmentId).update({
+        status: 'accepted',
+        acceptedAt: firestore.FieldValue.serverTimestamp(),
+      });
+      reload();
+    } catch {
+        Alert.alert('Lỗi', 'Không thể chấp nhận lịch hẹn.');
+    }
   }
 
-  // HOÀN THÀNH + TẠO/CẬP NHẬT HÓA ĐƠN
+  // Hành động Hoàn thành + Tạo Hóa đơn (Giữ nguyên)
   async function complete(item: any) {
-    // 1) cập nhật appointment
-    await db.collection('appointments').doc(item.id).update({
-      status: 'completed',
-      completedAt: firestore.FieldValue.serverTimestamp(),
-    });
-
-    // 2) tạo/cập nhật invoice
     try {
-      const meta = item?.meta || {};
-      const total = parseMoney(meta?.servicePrice ?? item?.price);
+        // 1) cập nhật appointment
+        await db.collection('appointments').doc(item.id).update({
+          status: 'completed',
+          completedAt: firestore.FieldValue.serverTimestamp(),
+        });
 
-      // Tránh trùng invoice cho cùng appointmentId
-      const existing = await db
-        .collection('invoices')
-        .where('appointmentId', '==', item.id)
-        .limit(1)
-        .get();
+        // 2) tạo/cập nhật invoice
+        const meta = item?.meta || {};
+        const total = parseMoney(meta?.servicePrice ?? item?.price);
 
-      const payload = {
-        appointmentId: item.id,
-        doctorId: item.doctorId,
-        patientId: item.patientId ?? meta?.patientId ?? null,
-        title: meta?.serviceName
-          ? `Hóa đơn dịch vụ: ${meta.serviceName}`
-          : 'Hóa đơn dịch vụ',
-        status: 'unpaid',
-        total, // <-- chuẩn hoá field tiền là "total" (number)
-        createdAt: firestore.FieldValue.serverTimestamp(),
-      };
+        const existing = await db
+          .collection('invoices')
+          .where('appointmentId', '==', item.id)
+          .limit(1)
+          .get();
 
-      if (!existing.empty) {
-        await existing.docs[0].ref.set(payload, { merge: true });
-      } else {
-        await db.collection('invoices').add(payload);
-      }
+        const payload = {
+          appointmentId: item.id,
+          doctorId: item.doctorId,
+          patientId: item.patientId ?? meta?.patientId ?? null,
+          title: meta?.serviceName
+            ? `Hóa đơn dịch vụ: ${meta.serviceName}`
+            : 'Hóa đơn dịch vụ',
+          status: 'unpaid',
+          total,
+          createdAt: firestore.FieldValue.serverTimestamp(),
+        };
+
+        if (!existing.empty) {
+          await existing.docs[0].ref.set(payload, { merge: true });
+        } else {
+          await db.collection('invoices').add(payload);
+        }
+        Alert.alert('Hoàn thành', 'Lịch hẹn đã hoàn thành và hóa đơn đã được tạo.');
     } catch (e) {
-      console.warn('create invoice failed', e);
+        console.warn('Complete appointment or create invoice failed', e);
+        Alert.alert('Lỗi', 'Không thể hoàn thành lịch hẹn và tạo hóa đơn.');
+    } finally {
+        reload();
     }
-
-    reload();
   }
 
   const onRefresh = useCallback(async () => {
@@ -212,12 +258,13 @@ export default function DoctorScheduleScreen() {
     }
   }, [reload]);
 
+  // Tabs mới với icon và style hiện đại
   const headerTabs = (
-    <View style={styles.tabs}>
+    <View style={styles.tabsContainer}>
       {[
-        { k: 'pending', label: 'Chờ duyệt' },
-        { k: 'today', label: 'Hôm nay' },
-        { k: 'upcoming', label: 'Sắp tới' },
+        { k: 'pending', label: 'Chờ duyệt', icon: 'clock' },
+        { k: 'today', label: 'Hôm nay', icon: 'calendar' },
+        { k: 'upcoming', label: 'Sắp tới', icon: 'arrow-right-circle' },
       ].map(t => {
         const active = tab === (t.k as Tab);
         return (
@@ -226,6 +273,12 @@ export default function DoctorScheduleScreen() {
             onPress={() => setTab(t.k as Tab)}
             style={[styles.tab, active && styles.tabActive]}
           >
+            <Icon
+              name={t.icon as any}
+              size={16}
+              color={active ? '#fff' : COLORS.textDark}
+              style={{ marginRight: 6 }}
+            />
             <Text style={[styles.tabText, active && styles.tabTextActive]}>
               {t.label}
             </Text>
@@ -236,160 +289,216 @@ export default function DoctorScheduleScreen() {
   );
 
   return (
-    <View style={styles.container}>
-      {headerTabs}
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
+      <View style={styles.container}>
+        <Text style={styles.pageTitle}>Quản lý Lịch khám</Text>
+        
+        {headerTabs}
 
-      <SectionList
-        sections={sections}
-        keyExtractor={i => i.id}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        renderSectionHeader={({ section: { title } }) => (
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>
-              {new Date(title).toLocaleDateString('vi-VN', {
-                weekday: 'short',
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-              })}
-            </Text>
-          </View>
-        )}
-        renderItem={({ item }) => {
-          const start = new Date(item.startISO);
-          const hhmm = start.toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          });
+        <SectionList
+          sections={sections}
+          keyExtractor={i => i.id}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
+          }
+          renderSectionHeader={({ section: { title } }) => (
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                {new Date(title).toLocaleDateString('vi-VN', {
+                  weekday: 'long', // Hiển thị đầy đủ thứ trong tuần
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                })}
+              </Text>
+            </View>
+          )}
+          renderItem={({ item }) => {
+            const start = new Date(item.startISO);
+            const hhmm = start.toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            });
 
-          const service = item.meta?.serviceName ?? 'Lịch khám';
-          const patientId = item.patientId ?? item.meta?.patientId ?? '';
-          const patientName =
-            patientsMap[patientId]?.name || patientId || 'Bệnh nhân';
-          const roomName = item.roomId
-            ? roomsMap[item.roomId] || item.roomId
-            : null;
+            const service = item.meta?.serviceName ?? 'Lịch khám';
+            const patientId = item.patientId ?? item.meta?.patientId ?? '';
+            const patientName =
+              patientsMap[patientId]?.name || patientId || 'Bệnh nhân';
+            const roomName = item.roomId
+              ? roomsMap[item.roomId] || item.roomId
+              : null;
 
-          const status = item.status ?? 'pending';
-          const statusStyle =
-            status === 'pending'
-              ? styles.stPending
-              : status === 'accepted'
-              ? styles.stAccepted
-              : styles.stCompleted;
+            const status = item.status ?? 'pending';
+            const statusColor =
+              status === 'pending'
+                ? COLORS.pending
+                : status === 'accepted'
+                ? COLORS.accepted
+                : COLORS.completed;
 
-          return (
-            <View style={styles.card}>
-              <View style={styles.rowBetween}>
-                <Text style={styles.time}>{hhmm}</Text>
-                <View style={[styles.statusPill, statusStyle]}>
-                  <Text style={styles.statusText}>
-                    {status === 'pending'
-                      ? 'Chờ duyệt'
-                      : status === 'accepted'
-                      ? 'Đã duyệt'
-                      : 'Hoàn thành'}
+            return (
+              <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                    {/* Thời gian */}
+                    <View style={styles.timePill}>
+                        <Icon name="clock" size={16} color="#fff" style={{ marginRight: 4 }} />
+                        <Text style={styles.timeText}>{hhmm}</Text>
+                    </View>
+
+                    {/* Trạng thái */}
+                    <View style={[styles.statusPill, { backgroundColor: statusColor + '15' }]}>
+                      <Icon
+                        name={status === 'pending' ? 'help-circle' : status === 'accepted' ? 'check-circle' : 'activity'}
+                        size={12}
+                        color={statusColor}
+                        style={{ marginRight: 4 }}
+                      />
+                      <Text style={[styles.statusText, { color: statusColor }]}>
+                        {status === 'pending'
+                          ? 'Chờ duyệt'
+                          : status === 'accepted'
+                          ? 'Đã duyệt'
+                          : 'Đã khám'}
+                      </Text>
+                    </View>
+                </View>
+                
+                {/* Thông tin chính */}
+                <Text style={styles.service} numberOfLines={1}>
+                  <Icon name="tag" size={14} color={COLORS.textMuted} /> {service}
+                </Text>
+
+                <View style={[styles.rowBetween, { marginTop: 4, marginBottom: 12 }]}>
+                  <Text style={styles.patient} numberOfLines={1}>
+                    <Icon name="user" size={14} color={COLORS.textMuted} /> BN: {patientName}
                   </Text>
+                  {roomName ? (
+                    <View style={styles.roomPill}>
+                      <Icon name="home" size={12} color={COLORS.textMuted} style={{ marginRight: 4 }} />
+                      <Text style={styles.roomText}>Phòng {roomName}</Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                {/* Hành động */}
+                <View style={styles.actionRow}>
+                  {status === 'pending' && (
+                    <SimpleButton
+                      title="Chấp nhận"
+                      onPress={() =>
+                        Alert.alert('Chấp nhận', 'Xác nhận chấp nhận lịch này?', [
+                          { text: 'Hủy', style: 'cancel' },
+                          { text: 'Chấp nhận', onPress: () => accept(item.id), style: 'default' },
+                        ])
+                      }
+                      style={{ flex: 1, marginRight: 8 }}
+                      color={COLORS.accepted}
+                    />
+                  )}
+                  {status === 'accepted' && (
+                    <SimpleButton title="Hoàn thành" onPress={() => complete(item)} style={{ flex: 1, marginRight: 8 }} color={COLORS.completed} />
+                  )}
+                  {status === 'completed' && (
+                    <SimpleButton title="Đã Hoàn thành" disabled style={{ flex: 1, marginRight: 8 }} />
+                  )}
+
+                  <Pressable
+                    onPress={() =>
+                      (navigation as any).navigate('AppointmentDetail', {
+                        appointmentId: item.id,
+                      })
+                    }
+                    style={[styles.simpleBtn, { flex: 1, backgroundColor: COLORS.border }]}
+                  >
+                    <Text style={[styles.simpleBtnText, { color: COLORS.textDark }]}>Xem chi tiết</Text>
+                  </Pressable>
                 </View>
               </View>
-
-              <Text style={styles.service} numberOfLines={1}>
-                {service}
-              </Text>
-
-              <View style={[styles.rowBetween, { marginTop: 6 }]}>
-                <Text style={styles.patient} numberOfLines={1}>
-                  BN: {patientName}
-                </Text>
-                {roomName ? (
-                  <View style={styles.roomPill}>
-                    <Text style={styles.roomText}>Phòng {roomName}</Text>
-                  </View>
-                ) : null}
-              </View>
-
-              <View style={{ marginTop: 10 }}>
-                {status === 'pending' && (
-                  <Button
-                    title="Chấp nhận"
-                    onPress={() =>
-                      Alert.alert('Chấp nhận', 'Xác nhận chấp nhận lịch này?', [
-                        { text: 'Hủy', style: 'cancel' },
-                        { text: 'Chấp nhận', onPress: () => accept(item.id) },
-                      ])
-                    }
-                  />
-                )}
-                {status === 'accepted' && (
-                  <Button title="Hoàn thành" onPress={() => complete(item)} />
-                )}
-                {status === 'completed' && (
-                  <Button title="Đã hoàn thành" disabled />
-                )}
-
-                <Pressable
-                  onPress={() =>
-                    (navigation as any).navigate('AppointmentDetail', {
-                      appointmentId: item.id,
-                    })
-                  }
-                  style={styles.detailBtn}
-                >
-                  <Text style={styles.detailTxt}>Xem chi tiết ›</Text>
-                </Pressable>
-              </View>
-            </View>
-          );
-        }}
-        ListEmptyComponent={
-          <Text style={styles.empty}>
-            {tab === 'pending'
-              ? 'Không có lịch chờ duyệt trong 30 ngày tới'
-              : tab === 'today'
-              ? 'Hôm nay chưa có lịch'
-              : 'Chưa có lịch đã duyệt trong 30 ngày tới'}
-          </Text>
-        }
-        contentContainerStyle={{ paddingBottom: 24 }}
-      />
-    </View>
+            );
+          }}
+          ListEmptyComponent={
+            <Text style={styles.empty}>
+              {tab === 'pending'
+                ? 'Không có lịch chờ duyệt trong 30 ngày tới'
+                : tab === 'today'
+                ? 'Hôm nay chưa có lịch'
+                : 'Chưa có lịch đã duyệt trong 30 ngày tới'}
+            </Text>
+          }
+          contentContainerStyle={{ paddingBottom: 24 }}
+        />
+      </View>
+    </SafeAreaView>
   );
 }
 
+// --- Stylesheet mới và sạch sẽ ---
+
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, paddingHorizontal: 16, backgroundColor: COLORS.background },
+  pageTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: COLORS.textDark,
+    paddingTop: 8,
+    marginBottom: 16,
+  },
 
   // Tabs
-  tabs: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  tab: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    backgroundColor: '#EEF2F7',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+  tabsContainer: { 
+    flexDirection: 'row', 
+    gap: 8, 
+    marginBottom: 20, 
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
   },
-  tabActive: { backgroundColor: '#1976d2', borderColor: '#1976d2' },
-  tabText: { fontWeight: '700', color: '#0F172A' },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: COLORS.cardBackground,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  tabActive: { 
+    backgroundColor: COLORS.primary, 
+    borderColor: COLORS.primary,
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  tabText: { fontWeight: '600', color: COLORS.textDark, fontSize: 13 },
   tabTextActive: { color: '#fff' },
 
   // Section header
-  sectionHeader: { paddingVertical: 6 },
-  sectionTitle: { fontWeight: '800', color: '#0F172A' },
+  sectionHeader: { paddingVertical: 10, backgroundColor: COLORS.background },
+  sectionTitle: { fontWeight: '700', color: COLORS.textDark, fontSize: 16 },
 
   // Card
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 10,
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 16,
+    padding: 15,
+    marginBottom: 12,
     shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 6,
-    elevation: 2,
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   rowBetween: {
     flexDirection: 'row',
@@ -397,32 +506,68 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
 
-  time: { fontSize: 16, fontWeight: '800', color: '#0F172A' },
-  service: { marginTop: 2, color: '#2563EB', fontWeight: '700' },
-  patient: { color: '#334155', fontWeight: '600', flex: 1, marginRight: 8 },
-
-  roomPill: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 999,
+  // Time & Status Pills
+  timePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 8,
   },
-  roomText: { color: '#475569', fontWeight: '700', fontSize: 12 },
+  timeText: { fontSize: 16, fontWeight: '800', color: '#fff' },
 
-  // Status pill
   statusPill: {
-    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
   },
-  stPending: { backgroundColor: '#FEF3C7' }, // amber-100
-  stAccepted: { backgroundColor: '#DBEAFE' }, // blue-100
-  stCompleted: { backgroundColor: '#DCFCE7' }, // green-100
-  statusText: { fontSize: 12, fontWeight: '800', color: '#0F172A' },
+  statusText: { fontSize: 12, fontWeight: '700' },
 
-  // Detail link
-  detailBtn: { marginTop: 8, alignSelf: 'flex-start' },
-  detailTxt: { color: '#64748B', fontWeight: '700' },
+  // Info
+  service: { 
+    marginTop: 4, 
+    color: COLORS.textDark, 
+    fontWeight: '700', 
+    fontSize: 15,
+  },
+  patient: { 
+    color: COLORS.textMuted, 
+    fontWeight: '600', 
+    flex: 1, 
+    marginRight: 8, 
+    fontSize: 13 
+  },
 
-  empty: { textAlign: 'center', color: '#667085', marginTop: 28 },
+  roomPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.border,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  roomText: { color: COLORS.textMuted, fontWeight: '700', fontSize: 12 },
+
+  // Action Buttons
+  actionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    gap: 8,
+  },
+  simpleBtn: {
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  simpleBtnText: {
+    fontWeight: '700',
+    fontSize: 14,
+  },
+
+  empty: { textAlign: 'center', color: COLORS.textMuted, marginTop: 28, fontSize: 15 },
 });

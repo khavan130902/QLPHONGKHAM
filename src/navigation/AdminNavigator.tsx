@@ -19,52 +19,92 @@ export default function AdminNavigator() {
       <Stack.Screen
         name="Dashboard"
         component={AdminDashboard}
-        options={{ title: 'Quản trị' }}
+        options={{ title: 'Quản trị',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="Today"
         component={TodayAppointmentsScreen}
-        options={{ title: 'Lịch hôm nay' }}
+        options={{ title: 'Lịch hôm nay',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="ManageDoctors"
         component={ManageDoctorsScreen}
-        options={{ title: 'Quản lý tài khoản' }}
+        options={{ title: 'Quản lý tài khoản',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="ManageShifts"
         component={ManageShiftsScreen}
-        options={{ title: 'Quản lý ca' }}
+        options={{ title: 'Quản lý ca',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="ManageServices"
         component={ManageServicesScreen}
-        options={{ title: 'Dịch vụ' }}
+        options={{ title: 'Dịch vụ',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="ManageSpecialties"
         component={ManageSpecialtiesScreen}
-        options={{ title: 'Chuyên khoa' }}
+        options={{ title: 'Chuyên khoa',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="ManageRooms"
         component={ManageRoomsScreen}
-        options={{ title: 'Phòng khám' }}
+        options={{ title: 'Phòng khám',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="RevenueDaily"
         component={RevenueScreen}
-        options={{ title: 'Doanh thu (ngày)' }}
+        options={{ title: 'Doanh thu (ngày)',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="History"
         component={HistoryScreen}
-        options={{ title: 'Lịch sử' }}
+        options={{ title: 'Lịch sử',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
       <Stack.Screen
         name="Settings"
         component={SettingsScreen}
-        options={{ title: 'Cài đặt' }}
+        options={{ title: 'Cài đặt',
+        headerStyle: { backgroundColor: '#2596be' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+         }}
       />
     </Stack.Navigator>
   );

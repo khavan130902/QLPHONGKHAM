@@ -1,83 +1,108 @@
-// screens/PatientHome.tsx - Giao diện mới cho MOONCARE
-
+// screens/PatientHome.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   FlatList,
-  Platform,
+  TouchableOpacity,
   Animated,
   Pressable,
+  SafeAreaView,
+  Image,
+  StatusBar,
+  Dimensions,
+  ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import safeAlert from '@/utils/safeAlert';
 import { useAuth } from '@/context/AuthContext';
 import db from '@/services/firestore';
 import Avatar from '@/components/Avatar';
+import safeAlert from '@/utils/safeAlert';
 
-// Định nghĩa lại Palette màu sắc hiện đại và chuyên nghiệp hơn
-const PRIMARY_COLOR = '#007BFF'; // Xanh dương chủ đạo
-const ACCENT_COLOR = '#00C896'; // Xanh ngọc
-const CARD_COLOR_LIGHT = '#FFFFFF';
-const TEXT_COLOR_DARK = '#1C274C';
-
-type ActionItem = {
-  key: string;
-  title: string;
-  route: string | null;
-  icon: string;
+const COLORS = {
+  primary: '#2596be',
+  background: '#f8f9fa',
+  cardBackground: '#ffffff',
+  textDark: '#1c1c1c',
+  subtitle: '#777777',
+  shadowColor: '#000000',
 };
+const { width } = Dimensions.get('window');
 
-// Giữ nguyên các hành động
-const ACTIONS: ActionItem[] = [
-  {
-    key: 'medical_history',
-    title: 'Quản lý hồ sơ bệnh án',
-    route: 'MedicalHistory',
-    icon: '🗂️',
-  },
-  { key: 'book', title: 'Đặt lịch khám', route: 'Book', icon: '📅' },
-  {
-    key: 'appointments',
-    title: 'Trạng thái lịch hẹn',
-    route: 'Appointments',
-    icon: '🗓️',
-  },
-  {
-    key: 'list_doctor',
-    title: 'Danh sách khoa & bác sĩ',
-    route: 'ListDoctor',
-    icon: '🩺',
-  },
-  { key: 'profile', title: 'Hồ sơ cá nhân', route: 'Profile', icon: '👤' },
-  { key: 'invoices', title: 'Hóa đơn', route: 'Invoices', icon: '🧾' },
-  { key: 'settings', title: 'Cài đặt', route: 'Settings', icon: '⚙️' },
+const BANNERS = [
+  { id: '1', image: require('../../../assets/banner4.png'), title: 'Khám sức khỏe định kỳ, bảo vệ bạn và gia đình' },
+  { id: '2', image: require('../../../assets/banner5.png'), title: 'Đặt lịch khám nhanh chóng, không cần chờ đợi' },
+  { id: '3', image: require('../../../assets/banner6.png'), title: 'Theo dõi hồ sơ bệnh án của bạn mọi lúc mọi nơi' },
 ];
 
-// Định nghĩa lại màu sắc cho icon dựa trên key
-const ICON_COLORS: Record<string, string> = {
-  medical_history: ACCENT_COLOR, // Xanh ngọc
-  book: PRIMARY_COLOR, // Xanh dương
-  appointments: '#FF9500', // Cam
-  list_doctor: '#5AC8FA', // Xanh nhạt
-  profile: '#34C759', // Xanh lá
-  invoices: '#FF3B30', // Đỏ
-  settings: '#8E8E93', // Xám
-};
+const ACTIONS = [
+  { key: 'medical_history', title: 'Hồ sơ bệnh án', route: 'MedicalHistory', icon: '🗂️', color: '#00C896' },
+  { key: 'book', title: 'Đặt lịch khám', route: 'Book', icon: '📅', color: '#2596be' },
+  { key: 'appointments', title: 'Lịch hẹn', route: 'Appointments', icon: '🗓️', color: '#FF9500' },
+  { key: 'list_doctor', title: 'Khoa & Bác sĩ', route: 'ListDoctor', icon: '🩺', color: '#5AC8FA' },
+  { key: 'profile', title: 'Hồ sơ cá nhân', route: 'Profile', icon: '👤', color: '#34C759' },
+  { key: 'invoices', title: 'Hóa đơn', route: 'Invoices', icon: '🧾', color: '#FF3B30' },
+  { key: 'settings', title: 'Cài đặt', route: 'Settings', icon: '⚙️', color: '#8E8E93' },
+];
+
+const AUTO_SCROLL_INTERVAL = 3000; // Tự động cuộn sau 3 giây
 
 export default function PatientHome() {
   const navigation = useNavigation();
   const { user } = useAuth() as any;
   const [profile, setProfile] = useState<any>(null);
-  const [todayCount, setTodayCount] = useState<number>(0);
-
-  // LOGIC CỦA BẠN (Animation, Load Profile, Load Appointments) được giữ nguyên
   const fade = useRef(new Animated.Value(0)).current;
+  const scrollX = useRef(new Animated.Value(0)).current;
+  
+  // Ref cho ScrollView để thực hiện cuộn
+  const flatListRef = useRef<ScrollView>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  // LOGIC TỰ ĐỘNG CUỘN (AUTO-SCROLLING)
   useEffect(() => {
-    Animated.timing(fade, { toValue: 1, duration: 380, useNativeDriver: true }).start();
+    // Kích thước banner = width màn hình trừ padding 16*2
+    const bannerWidth = width;
+    
+    // Tự động chuyển banner
+    const interval = setInterval(() => {
+      setActiveIndex(prevIndex => {
+        const nextIndex = (prevIndex + 1) % BANNERS.length;
+        
+        // Dùng ScrollView ref để cuộn tới vị trí mới
+        flatListRef.current?.scrollTo({
+          x: nextIndex * bannerWidth,
+          animated: true,
+        });
+
+        return nextIndex;
+      });
+    }, AUTO_SCROLL_INTERVAL);
+
+    // Dọn dẹp interval khi component unmount
+    return () => clearInterval(interval);
+  }, [BANNERS.length]); 
+
+  // Cập nhật activeIndex khi người dùng tự cuộn
+  const onScroll = Animated.event(
+      [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+      { 
+          useNativeDriver: false,
+          listener: (event: any) => {
+              const newIndex = Math.round(event.nativeEvent.contentOffset.x / width);
+              if (newIndex !== activeIndex) {
+                  setActiveIndex(newIndex);
+              }
+          }
+      }
+  );
+
+
+  // LOGIC KHỞI TẠO VÀ LẤY DỮ LIỆU
+  useEffect(() => {
+    Animated.timing(fade, { toValue: 1, duration: 400, useNativeDriver: true }).start();
   }, []);
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -94,27 +119,6 @@ export default function PatientHome() {
     };
   }, [user]);
 
-  useEffect(() => {
-    (async () => {
-      if (!user) return;
-      try {
-        const start = new Date();
-        start.setHours(0, 0, 0, 0);
-        const end = new Date();
-        end.setHours(23, 59, 59, 999);
-        const snap = await db
-          .collection('appointments')
-          .where('patientId', '==', user.uid)
-          .where('start', '>=', start.toISOString())
-          .where('start', '<=', end.toISOString())
-          .get();
-        setTodayCount(snap.size || 0);
-      } catch (e) {
-        console.warn('today count', e);
-      }
-    })();
-  }, [user]);
-
   const greeting = useMemo(() => {
     const h = new Date().getHours();
     if (h < 11) return 'Chào buổi sáng';
@@ -122,246 +126,204 @@ export default function PatientHome() {
     return 'Chào buổi tối';
   }, []);
 
-  function open(item: ActionItem) {
+  function open(item: any) {
     if (item.route) (navigation as any).navigate(item.route);
     else safeAlert('Chưa có', 'Chức năng này sẽ sớm có mặt!');
   }
 
-  // --- RENDERING ---
-  return (
-    <Animated.View style={[styles.container, { opacity: fade }]}>
-      
-      {/* HEADER CARD MỚI */}
-      <Pressable
-        style={styles.headerCard}
-        onPress={() => (navigation as any).navigate('Appointments')}
-      >
-        <View style={styles.headerContent}>
-          <Text style={styles.headerGreeting}>{greeting}</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {profile?.name || 'Bệnh nhân'}
-          </Text>
-          <View style={styles.appointmentPill}>
-            <Text style={styles.appointmentText}>
-              **Hôm nay có {todayCount} lịch**
-            </Text>
-          </View>
-        </View>
-        <TouchableOpacity
-          style={styles.avatarButton}
-          onPress={() => (navigation as any).navigate('Profile')}
-        >
-          <Avatar uri={profile?.photoURL} name={profile?.name} size={60} />
-        </TouchableOpacity>
-      </Pressable>
-
-      <Text style={styles.sectionTitle}>Các chức năng chính</Text>
-
-      {/* Grid actions MỚI */}
-      <FlatList
-        data={ACTIONS}
-        keyExtractor={i => i.key}
-        numColumns={2}
-        columnWrapperStyle={styles.columnWrapper}
-        contentContainerStyle={styles.gridContainer}
-        ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
-        renderItem={({ item, index }) => (
-          <ActionCard
-            color={ICON_COLORS[item.key] || PRIMARY_COLOR}
-            title={item.title}
-            icon={item.icon}
-            delay={80 * index}
-            onPress={() => open(item)}
-          />
-        )}
-      />
-    </Animated.View>
-  );
-}
-
-/* ---------- Action Card (New Style: White background, Color Icon) ---------- */
-function ActionCard({
-  title,
-  color,
-  icon,
-  onPress,
-  delay = 0,
-}: {
-  title: string;
-  color: string;
-  icon: string;
-  onPress: () => void;
-  delay?: number;
-}) {
-  // Giữ nguyên animation vào (enter animation) và hiệu ứng press
-  const scale = useRef(new Animated.Value(0.95)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(scale, {
-        toValue: 1,
-        duration: 240,
-        delay,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 240,
-        delay,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [delay, opacity, scale]);
-
-  const pressIn = () =>
-    Animated.spring(scale, {
-      toValue: 0.97,
-      useNativeDriver: true,
-      friction: 7,
-    }).start();
-  const pressOut = () =>
-    Animated.spring(scale, {
-      toValue: 1,
-      useNativeDriver: true,
-      friction: 7,
-    }).start();
-
-  return (
-    <Animated.View
-      style={[
-        styles.actionCardContainer, // Sử dụng style mới
-        { transform: [{ scale }], opacity },
-      ]}
+  const renderItem = ({ item }: { item: any }) => (
+    <TouchableOpacity
+      style={[styles.card, { borderLeftColor: item.color || COLORS.primary }]}
+      onPress={() => open(item)}
+      activeOpacity={0.85}
     >
-      <Pressable
-        android_ripple={{ color: 'rgba(0,0,0,0.05)' }}
-        style={styles.actionCardInner}
-        onPressIn={pressIn}
-        onPressOut={pressOut}
-        onPress={onPress}
-      >
-        <View style={[styles.actionIconWrap, { backgroundColor: color + '15' }]}>
-          <Text style={[styles.actionIconText, { color: color }]}>
-            {icon}
-          </Text>
+      <View style={[styles.iconCircle, { backgroundColor: item.color + '15' }]}>
+        <Text style={styles.cardIcon}>{item.icon}</Text>
+      </View>
+      <View style={styles.cardTextContainer}>
+        <Text style={styles.cardTitle}>{item.title}</Text>
+      </View>
+      <Text style={styles.chevron}>›</Text>
+    </TouchableOpacity>
+  );
+
+  // Điều chỉnh style banner để khớp với logic cuộn
+  const BANNER_WIDTH = width - 32;
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+      <Animated.View style={[styles.container, { opacity: fade }]}>
+        
+        {/* HEADER */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Image
+              source={require('../../../assets/logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+            <View>
+              <Text style={styles.headerGreeting}>{greeting}</Text>
+              <Text style={styles.headerName}>{profile?.name || 'Bệnh nhân'}</Text>
+            </View>
+          </View>
+          <Pressable onPress={() => (navigation as any).navigate('Profile')}>
+            <Avatar uri={profile?.photoURL} name={profile?.name} size={50} />
+          </Pressable>
         </View>
-        <Text style={styles.actionCardTitle} numberOfLines={2}>
-          {title}
-        </Text>
-        <Text style={styles.actionChevron}>›</Text>
-      </Pressable>
-    </Animated.View>
+
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {/* BANNER SLIDER */}
+          <ScrollView
+            ref={flatListRef} // Gán ref cho ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onScroll={onScroll} // Sử dụng onScroll mới
+            scrollEventThrottle={16}
+            style={styles.bannerContainer}
+            contentContainerStyle={{ paddingRight: 16 }} // Đẩy item cuối cùng vào đúng vị trí
+          >
+            {BANNERS.map((b, index) => (
+              // Điều chỉnh width để không bị tràn khi cuộn
+              <View key={b.id} style={[styles.banner, { width: BANNER_WIDTH, marginRight: index === BANNERS.length - 1 ? 0 : 16 }]}> 
+                <Image source={b.image} style={styles.bannerImage} resizeMode="cover" />
+                <View style={styles.bannerOverlay} />
+                <Text style={styles.bannerTitle}>{b.title}</Text>
+              </View>
+            ))}
+          </ScrollView>
+
+          {/* PAGE DOTS */}
+          <View style={styles.dotContainer}>
+            {BANNERS.map((_, i) => {
+              // Dùng activeIndex để xác định dot đang active
+              const isActive = i === activeIndex;
+              return (
+                <View 
+                    key={i} 
+                    style={[
+                        styles.dot, 
+                        isActive ? styles.dotActive : styles.dotInactive
+                    ]} 
+                />
+              );
+            })}
+          </View>
+
+          {/* FEATURE GRID */}
+          <FlatList
+            data={ACTIONS}
+            keyExtractor={i => i.key}
+            numColumns={2}
+            columnWrapperStyle={styles.row}
+            contentContainerStyle={styles.listContent}
+            renderItem={renderItem}
+            scrollEnabled={false}
+          />
+        </ScrollView>
+      </Animated.View>
+    </SafeAreaView>
   );
 }
 
-/* -------------------------------- Styles MỚI -------------------------------- */
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#F4F5F9' }, // Nền xám nhạt
-
-  // --- Header Card Styles ---
-  headerCard: {
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1 },
+  header: {
+    backgroundColor: COLORS.primary,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: CARD_COLOR_LIGHT, // Nền trắng
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
-    // Shadow cho Header Card
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOpacity: 0.08,
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 10,
-      },
-      android: { elevation: 3 },
-    }),
   },
-  headerContent: { flex: 1, marginRight: 15 },
-  headerGreeting: { color: '#8E8E93', fontSize: 14, fontWeight: '500' },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: TEXT_COLOR_DARK,
-    marginTop: 4,
-  },
-  appointmentPill: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#E6F0FF', // Xanh dương rất nhạt
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    marginTop: 10,
-  },
-  appointmentText: {
-    color: PRIMARY_COLOR, // Chữ màu xanh dương chủ đạo
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  avatarButton: {
-    borderRadius: 30, // Avatar lớn hơn
-  },
-  
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: TEXT_COLOR_DARK,
-    marginBottom: 10,
-    marginTop: 5,
-  },
+  headerLeft: { flexDirection: 'row', alignItems: 'center' },
+  logo: { width: width * 0.20, height: 90, marginRight: 2, tintColor: COLORS.cardBackground },
+  headerGreeting: { left: 16, color: '#EAF8FF', fontSize: 14, fontWeight: '500' },
+  headerName: { left: 16, color: '#fff', fontSize: 20, fontWeight: '700' },
 
-  // --- Grid Action Styles ---
-  gridContainer: { paddingBottom: 28 },
-  columnWrapper: { gap: 16 }, // Khoảng cách giữa các cột
-
-  // Card chứa Action
-  actionCardContainer: {
-    flex: 1,
-    minHeight: 120, // Cao hơn
+  // BANNER
+  bannerContainer: { marginTop: 16, paddingLeft: 16 }, 
+  banner: {
     borderRadius: 16,
-    backgroundColor: CARD_COLOR_LIGHT, // Nền trắng
     overflow: 'hidden',
-    // Shadow nhẹ hơn cho Action Card
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOpacity: 0.05,
-        shadowOffset: { width: 0, height: 2 },
-        shadowRadius: 4,
-      },
-      android: { elevation: 2 },
-    }),
+    height: 200,
   },
-  actionCardInner: {
-    flex: 1,
-    padding: 16,
-    justifyContent: 'space-between', // Căn trên dưới
-    alignItems: 'flex-start',
+  bannerImage: { width: '100%', height: '100%' },
+  bannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.25)',
   },
-  actionIconWrap: {
-    width: 48, // Icon lớn hơn
-    height: 48,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  actionIconText: { fontSize: 28, opacity: 0.9 },
-  actionCardTitle: {
-    color: TEXT_COLOR_DARK,
+  bannerTitle: {
+    position: 'absolute',
+    bottom: 14,
+    left: 14,
+    color: '#fff',
     fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 10,
-    lineHeight: 22,
+    fontWeight: '600',
+    width: '90%',
   },
-  actionChevron: {
-    color: '#999999',
-    fontSize: 24,
-    fontWeight: '800',
-    position: 'absolute', // Đẩy xuống góc dưới bên phải
-    bottom: 10,
-    right: 16,
+  dotContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 10,
+    marginBottom: 4,
   },
+  dot: {
+    height: 6,
+    borderRadius: 3,
+    marginHorizontal: 4,
+  },
+  dotActive: {
+    width: 20, // Dot active rộng hơn
+    backgroundColor: COLORS.primary,
+  },
+  dotInactive: {
+    width: 6,
+    backgroundColor: COLORS.primary + '50',
+  },
+
+  row: {
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingHorizontal: 16,
+  },
+  listContent: {
+    paddingBottom: 24,
+    paddingTop: 20,
+  },
+  card: {
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 14,
+    padding: 16,
+    flex: 1,
+    marginHorizontal: 6,
+    minHeight: 130,
+    justifyContent: 'space-between',
+    borderLeftWidth: 6,
+    shadowColor: COLORS.shadowColor,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  iconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  cardIcon: { fontSize: 26 },
+  cardTextContainer: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: COLORS.textDark },
+  chevron: { position: 'absolute', right: 12, bottom: 23, fontSize: 22, color: '#999' },
 });
