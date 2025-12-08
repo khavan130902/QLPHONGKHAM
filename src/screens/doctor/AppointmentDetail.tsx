@@ -15,7 +15,7 @@ import Button from '@/components/Button';
 import db from '@/services/firestore';
 import { useAuth } from '@/context/AuthContext';
 import safeAlert from '@/utils/safeAlert';
-import Icon from '@react-native-vector-icons/feather'; // Thêm Icon để trang trí nút
+import Icon from '@react-native-vector-icons/feather';
 
 type Note = {
   text: string;
@@ -137,7 +137,12 @@ export default function AppointmentDetail({ route, navigation }: any) {
   async function addNote() {
     if (!appointmentId) return;
     const body = notesInput.trim();
-    if (!body) return safeAlert('Thông tin', 'Nhập ghi chú trước khi lưu');
+    // 💡 Đã đổi nhãn thông báo
+    if (!body)
+      return safeAlert(
+        'Thông tin',
+        'Nhập chuẩn đoán/lời khuyên trước khi lưu',
+      );
 
     const newNote: Note = {
       text: body,
@@ -163,12 +168,13 @@ export default function AppointmentDetail({ route, navigation }: any) {
       setAppointment((p: any) => ({ ...(p || {}), notes: updated }));
       setNotesInput('');
       Keyboard.dismiss();
-      safeAlert('Thành công', 'Đã thêm ghi chú');
+      // 💡 Đã đổi nhãn thông báo
+      safeAlert('Thành công', 'Đã lưu chuẩn đoán/lời khuyên');
     } catch (e: any) {
       console.error('addNote Error:', e);
       safeAlert(
         'Lỗi',
-        `Không thể thêm ghi chú: ${(e && e.message) || String(e)}`,
+        `Không thể lưu chuẩn đoán/lời khuyên: ${(e && e.message) || String(e)}`,
       );
     } finally {
       setSaving(false);
@@ -197,7 +203,7 @@ export default function AppointmentDetail({ route, navigation }: any) {
             },
             style: 'destructive',
           },
-        ]
+        ],
       );
     } catch (e) {
       console.warn('cancelAppointment', e);
@@ -212,8 +218,7 @@ export default function AppointmentDetail({ route, navigation }: any) {
     if (!patientId) {
       return safeAlert('Thông báo', 'Không có ID bệnh nhân để truy vấn lịch sử.');
     }
-    navigation.navigate('PatientMedicalHistory', { focusedPatientId: patientId }); 
-    
+    navigation.navigate('PatientMedicalHistory', { focusedPatientId: patientId });
   }
 
   const formatMoney = (n?: number | string | null) =>
@@ -262,6 +267,13 @@ export default function AppointmentDetail({ route, navigation }: any) {
       </View>
     );
   }
+
+  // Lấy trạng thái lịch hẹn
+  const currentStatus = (appointment?.status || '').toLowerCase();
+  // Kiểm tra xem lịch hẹn đã hoàn thành chưa
+  const isCompletedOrCancelled = ['completed', 'cancelled'].includes(
+    currentStatus,
+  );
 
   const m = appointment?.meta || {};
   const metaRows: KV[] = [
@@ -316,23 +328,23 @@ export default function AppointmentDetail({ route, navigation }: any) {
         </View>
 
         <KVRow label="Bệnh nhân" value={patientLine} />
-        
+
         {/* 🌟 NÚT XEM LỊCH SỬ BỆNH NHÂN */}
         {appointment.patientId && (
-            <TouchableOpacity 
-                onPress={goToPatientHistory}
-                style={styles.historyButton}
-                activeOpacity={0.8}
-            >
-                <Icon name="file-text" size={16} color="#FFFFFF" />
-                <Text style={styles.historyButtonText}>
-                    Xem Hồ Sơ Bệnh Nhân
-                </Text>
-            </TouchableOpacity>
+          <TouchableOpacity
+            onPress={goToPatientHistory}
+            style={styles.historyButton}
+            activeOpacity={0.8}
+          >
+            <Icon name="file-text" size={16} color="#FFFFFF" />
+            <Text style={styles.historyButtonText}>
+              Xem Hồ Sơ Bệnh Nhân
+            </Text>
+          </TouchableOpacity>
         )}
         {/* 🌟 HẾT NÚT XEM LỊCH SỬ BỆNH NHÂN */}
-        
-        <View style={styles.divider} /> 
+
+        <View style={styles.divider} />
         <KVRow label="Phòng" value={roomName} />
         <KVRow label="Bắt đầu / Kết thúc" value={`${startStr} — ${endStr}`} />
         <View style={styles.divider} />
@@ -364,9 +376,9 @@ export default function AppointmentDetail({ route, navigation }: any) {
         ) : null}
       </View>
 
-      {/* Ghi chú */}
+      {/* 💡 CHUẨN ĐOÁN VÀ LỜI KHUYÊN BÁC SĨ (ĐÃ THAY ĐỔI) */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Ghi chú bác sĩ</Text>
+        <Text style={styles.cardTitle}>Chuẩn đoán và Lời khuyên Bác sĩ</Text>
 
         {notes?.length ? (
           <View style={{ gap: 8 }}>
@@ -383,28 +395,32 @@ export default function AppointmentDetail({ route, navigation }: any) {
                   </Text>
                   <Text style={styles.noteTime}>{formatTs(n.createdAt)}</Text>
                 </View>
+                {/* 💡 THÊM NHÃN 'Nội dung' CHO GHI CHÚ ĐÃ CÓ */}
+                <Text style={styles.subtleLabel}>Nội dung:</Text>
                 <Text style={styles.noteText}>{n.text}</Text>
               </View>
             ))}
           </View>
         ) : (
-          <Text style={styles.subtleLabel}>Chưa có ghi chú</Text>
+          <Text style={styles.subtleLabel}>
+            Chưa có chuẩn đoán/lời khuyên
+          </Text>
         )}
 
         <View style={styles.divider} />
-        <Text style={styles.subtleLabel}>Thêm ghi chú mới</Text>
+        <Text style={styles.subtleLabel}>Thêm chuẩn đoán/lời khuyên mới</Text>
         <TextInput
           value={notesInput}
           onChangeText={setNotesInput}
           style={styles.textarea}
-          placeholder="Nhập ghi chú..."
+          placeholder="Nhập chuẩn đoán hoặc lời khuyên..."
           multiline
           numberOfLines={5}
           textAlignVertical="top"
         />
         <View style={{ marginTop: 6 }}>
           <Button
-            title={saving ? 'Đang lưu...' : 'Thêm ghi chú'}
+            title={saving ? 'Đang lưu...' : 'Lưu chuẩn đoán/lời khuyên'}
             onPress={addNote}
             disabled={saving || !notesInput.trim()}
           />
@@ -412,17 +428,20 @@ export default function AppointmentDetail({ route, navigation }: any) {
       </View>
 
       {/* Hành động nhanh */}
-      <View style={[styles.card, { gap: 8 }]}>
-        <Text style={styles.cardTitle}>Hành động</Text>
-        <TouchableOpacity activeOpacity={0.8}>
-          <Button
-            title="Hủy lịch"
-            onPress={cancelAppointment}
-            style={styles.cancelButton}
-            textStyle={styles.cancelButtonText}
-          />
-        </TouchableOpacity>
-      </View>
+      {/* 🌟 CHỈ HIỂN THỊ HÀNH ĐỘNG HỦY KHI LỊCH HẸN CHƯA HOÀN THÀNH HOẶC CHƯA HỦY */}
+      {!isCompletedOrCancelled && (
+        <View style={[styles.card, { gap: 8 }]}>
+          <Text style={styles.cardTitle}>Hành động</Text>
+          <TouchableOpacity activeOpacity={0.8}>
+            <Button
+              title="Hủy lịch"
+              onPress={cancelAppointment}
+              style={styles.cancelButton}
+              textStyle={styles.cancelButtonText}
+            />
+          </TouchableOpacity>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -551,7 +570,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textTransform: 'uppercase',
   },
-  
+
   // 🌟 STYLE MỚI CHO NÚT XEM LỊCH SỬ BỆNH NHÂN
   historyButton: {
     backgroundColor: '#2596be',

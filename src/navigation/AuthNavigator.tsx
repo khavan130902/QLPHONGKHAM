@@ -2,8 +2,6 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LandingScreen from '@/screens/auth/LandingScreen';
 import LoginScreen from '@/screens/auth/LoginScreen';
-import PhoneOtpScreen from '@/screens/auth/PhoneOtpScreen';
-import RegisterScreen from '@/screens/auth/RegisterScreen';
 import AccountLoginScreen from '@/screens/auth/AccountLoginScreen';
 import AccountRegisterScreen from '@/screens/auth/AccountRegisterScreen';
 
@@ -30,16 +28,6 @@ export default function AuthNavigator() {
         name="AccountRegister"
         component={AccountRegisterScreen}
         options={{ title: 'Đăng ký tài khoản' }}
-      />
-      <Stack.Screen
-        name="PhoneOtp"
-        component={PhoneOtpScreen}
-        options={{ title: 'Xác thực OTP' }}
-      />
-      <Stack.Screen
-        name="Register"
-        component={RegisterScreen}
-        options={{ title: 'Đăng ký' }}
       />
     </Stack.Navigator>
   );

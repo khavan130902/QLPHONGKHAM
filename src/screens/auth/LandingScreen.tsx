@@ -57,18 +57,11 @@ export default function LandingScreen({ navigation }: any) {
         
         {/* Nút Đăng nhập/Tiếp tục bằng SĐT (Nút chính) */}
         <PhoneBtn
-          text="Tiếp tục với Số điện thoại"
+          text="Tạo Tài Khoản Mới (Đăng Ký)"
           onPress={() => {
             navigation.navigate('Login'); 
           }}
         />
-
-        {/* Hoặc */}
-        <View style={styles.orContainer}>
-          <View style={styles.divider} />
-          <Text style={styles.orText}>Hoặc</Text>
-          <View style={styles.divider} />
-        </View>
         
         {/* Nút Đăng nhập bằng tài khoản (Nút phụ) */}
         <TouchableOpacity
@@ -76,25 +69,9 @@ export default function LandingScreen({ navigation }: any) {
           onPress={() => navigation.navigate('AccountLogin')}
           activeOpacity={0.8}
         >
-          <Text style={styles.accountBtnText}>Đăng nhập bằng Email/Tài khoản</Text>
+          <Text style={styles.accountBtnText}>Đã có tài khoản? Đăng nhập</Text>
         </TouchableOpacity>
 
-        <Text style={styles.socialTitle}>Tiếp tục với mạng xã hội</Text>
-        <View style={styles.socialGroup}>
-            {/* Nút Xã hội 1 */}
-            <SocialBtn
-                text="Facebook"
-                iconSource={require('../../../assets/facebook.png')}
-                onPress={() => navigation.navigate('AccountLogin')}
-            />
-            <View style={{ width: 12 }} /> 
-            {/* Nút Xã hội 2 */}
-            <SocialBtn
-                text="Google"
-                iconSource={require('../../../assets/google.png')}
-                onPress={() => navigation.navigate('AccountLogin')}
-            />
-        </View>
       </View>
     </SafeAreaView>
   );

@@ -10,6 +10,7 @@ import {
   Modal,
   ScrollView,
   Platform,
+  SafeAreaView, 
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
@@ -23,7 +24,8 @@ import { useAuth } from '@/context/AuthContext';
 import {
   createBooking,
   getAppointmentsForDoctorOnDay,
-} from '@/services/booking';
+}
+from '@/services/booking';
 
 // optional native datepicker
 // @ts-ignore
@@ -32,6 +34,29 @@ try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   DateTimePicker = require('@react-native-community/datetimepicker').default;
 } catch (_) {}
+
+// Hằng số màu sắc mới
+const COLORS = {
+  primary: '#2596be', // Màu chính
+  secondary: '#FF9500',
+  background: '#f0f4f8', // Nền nhẹ
+  cardBackground: '#ffffff',
+  textDark: '#1c1c1c',
+  subtitle: '#777777',
+  accent: '#1976d2', // Màu nhấn mạnh cho nút/chọn
+  accentLight: '#e0f0ff', // Màu nền nhẹ cho chọn
+  border: '#E0E0E0',
+  shadowColor: '#000000',
+  danger: '#ff4d4d',
+};
+
+// Component Card để nhóm các bước
+const Card = ({ children, title }: { children: React.ReactNode, title: string }) => (
+  <View style={newStyles.card}>
+    <Text style={newStyles.cardTitle}>{title}</Text>
+    {children}
+  </View>
+);
 
 type Doctor = {
   id: string;
@@ -52,7 +77,7 @@ type ServiceType = {
 
 const DAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
-/* --------------------------- Date helpers --------------------------- */
+/* --------------------------- Date helpers (GIỮ NGUYÊN) --------------------------- */
 function toYMD(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -122,7 +147,7 @@ export default function BookScreen() {
   const [bookingForOther, setBookingForOther] = useState(false);
   const [otherPatientId, setOtherPatientId] = useState('');
 
-  /* ------------------------------ init load ------------------------------ */
+  /* ------------------------------ init load (GIỮ NGUYÊN) ------------------------------ */
   useEffect(() => {
     (async () => {
       try {
@@ -169,7 +194,7 @@ export default function BookScreen() {
     })();
   }, []);
 
-  /* -------------------- load services when specialty changes -------------------- */
+  /* -------------------- load services when specialty changes (GIỮ NGUYÊN) -------------------- */
   useEffect(() => {
     setSelectedServiceId(null);
     // reset selected doctor khi đổi chuyên khoa
@@ -206,7 +231,7 @@ export default function BookScreen() {
     })();
   }, [selectedSpecialtyId]);
 
-  /* ------------- load shifts + existing appointments when doctor/date changes ------------- */
+  /* ------------- load shifts + existing appointments when doctor/date changes (GIỮ NGUYÊN) ------------- */
   useEffect(() => {
     if (!doctorId || !date) {
       setShiftsForDate([]);
@@ -306,7 +331,7 @@ export default function BookScreen() {
     })();
   }, [doctorId, date]);
 
-  /* ---------------------------- derived lists ---------------------------- */
+  /* ---------------------------- derived lists (GIỮ NGUYÊN) ---------------------------- */
   const doctorsFiltered = useMemo(() => {
     if (!selectedSpecialtyId) return doctors;
     return doctors.filter(d => (d?.specialty_id || '') === selectedSpecialtyId);
@@ -321,7 +346,7 @@ export default function BookScreen() {
     [doctors, doctorId],
   );
 
-  /* ------------------------------- actions ------------------------------- */
+  /* ------------------------------- actions (GIỮ NGUYÊN) ------------------------------- */
   function onConfirm() {
     if (!selectedSpecialtyId)
       return safeAlert('Thiếu thông tin', 'Vui lòng chọn chuyên khoa.');
@@ -386,34 +411,37 @@ export default function BookScreen() {
     ]);
   }
 
-  /* ------------------------------- UI blocks ------------------------------- */
+  /* ------------------------------- UI blocks (ĐÃ SỬA LỖI STYLES) ------------------------------- */
   const SpecialtySelector = (
-    <>
-      <Text style={styles.sectionTitle}>Chọn chuyên khoa</Text>
+    <Card title="1. Chọn Chuyên Khoa">
       <TouchableOpacity
-        style={styles.dropdownHeader}
-        onPress={() => setSpecialtyOpen(v => !v)}
+        style={newStyles.dropdownHeader}
+        onPress={() => {
+          setSpecialtyOpen(v => !v);
+          setServiceOpen(false);
+          setDoctorOpen(false);
+        }}
       >
-        <Text style={{ fontWeight: '600' }}>
+        <Text style={newStyles.dropdownHeaderText}>
           {selectedSpecialtyId
             ? specialtyMap[selectedSpecialtyId]
             : 'Tất cả chuyên khoa'}
         </Text>
-        <Text>{specialtyOpen ? '▴' : '▾'}</Text>
+        <Text style={{ color: COLORS.textDark }}>{specialtyOpen ? '▲' : '▼'}</Text>
       </TouchableOpacity>
       {specialtyOpen && (
-        <View style={styles.dropdownBody}>
-          <TouchableOpacity
-            onPress={() => {
-              setSelectedSpecialtyId(null);
-              setSelectedServiceId(null);
-              setSpecialtyOpen(false);
-            }}
-            style={styles.dropdownItem}
-          >
-            <Text>Tất cả</Text>
-          </TouchableOpacity>
+        <View style={newStyles.dropdownBody}>
           <ScrollView style={{ maxHeight: 220 }}>
+            <TouchableOpacity
+              onPress={() => {
+                setSelectedSpecialtyId(null);
+                setSelectedServiceId(null);
+                setSpecialtyOpen(false);
+              }}
+              style={newStyles.dropdownItem}
+            >
+              <Text style={newStyles.dropdownItemText}>Tất cả chuyên khoa</Text>
+            </TouchableOpacity>
             {specialties.map(s => (
               <TouchableOpacity
                 key={s.id}
@@ -422,170 +450,185 @@ export default function BookScreen() {
                   setSelectedServiceId(null);
                   setSpecialtyOpen(false);
                 }}
-                style={styles.dropdownItem}
+                style={[
+                  newStyles.dropdownItem,
+                  selectedSpecialtyId === s.id && newStyles.dropdownItemSelected,
+                ]}
               >
-                <Text>{s.name}</Text>
+                <Text style={newStyles.dropdownItemText}>{s.name}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
         </View>
       )}
-    </>
+    </Card>
   );
 
   const ServiceSelector = (
-    <>
-      <Text style={styles.sectionTitle}>Chọn dịch vụ</Text>
+    <Card title="2. Chọn Dịch Vụ">
       <TouchableOpacity
-        style={styles.dropdownHeader}
-        onPress={() => setServiceOpen(v => !v)}
+        style={[
+          newStyles.dropdownHeader,
+          !selectedSpecialtyId && newStyles.dropdownDisabled,
+        ]}
+        onPress={() => {
+          selectedSpecialtyId && setServiceOpen(v => !v);
+          setSpecialtyOpen(false);
+          setDoctorOpen(false);
+        }}
         disabled={!selectedSpecialtyId}
       >
         <Text
-          style={{
-            fontWeight: '600',
-            color: selectedSpecialtyId ? '#111' : '#999',
-          }}
+          style={[
+            newStyles.dropdownHeaderText,
+            !selectedSpecialtyId && { color: COLORS.subtitle },
+          ]}
         >
           {selectedServiceId
-            ? services.find(s => s.id === selectedServiceId)?.name ?? 'Dịch vụ'
+            ? chosenService?.name ?? 'Dịch vụ'
             : selectedSpecialtyId
-            ? 'Chọn dịch vụ'
-            : 'Chọn chuyên khoa trước'}
+              ? 'Chọn dịch vụ'
+              : '⬅ Vui lòng chọn chuyên khoa'}
         </Text>
-        <Text>{serviceOpen ? '▴' : '▾'}</Text>
+        <Text style={{ color: selectedSpecialtyId ? COLORS.textDark : COLORS.subtitle }}>
+          {serviceOpen ? '▲' : '▼'}
+        </Text>
       </TouchableOpacity>
+      
       {serviceOpen && selectedSpecialtyId && (
-        <View style={styles.dropdownBody}>
+        <View style={newStyles.dropdownBody}>
           {services.length === 0 ? (
-            <Text style={{ color: '#666', padding: 8 }}>
-              Chuyên khoa này chưa có dịch vụ.
+            <Text style={newStyles.warningText}>
+              Chuyên khoa này chưa có dịch vụ hoạt động.
             </Text>
-          ) : null}
-          <ScrollView style={{ maxHeight: 300 }}>
-            {services.map(s => (
-              <TouchableOpacity
-                key={s.id}
-                style={styles.dropdownItem}
-                onPress={() => {
-                  setSelectedServiceId(s.id);
-                  setServiceOpen(false);
-                }}
-              >
-                <Text style={{ fontWeight: '600' }}>{s.name}</Text>
-                <Text style={{ color: '#666', marginTop: 2 }}>
-                  {s.duration_min ? `• ${s.duration_min} phút   ` : ''}
-                  {s.base_price != null
-                    ? `• ${Number(s.base_price).toLocaleString()}₫`
-                    : ''}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          ) : (
+            <ScrollView style={{ maxHeight: 300 }}>
+              {services.map(s => (
+                <TouchableOpacity
+                  key={s.id}
+                  style={[
+                    newStyles.dropdownItem,
+                    selectedServiceId === s.id && newStyles.dropdownItemSelected,
+                  ]}
+                  onPress={() => {
+                    setSelectedServiceId(s.id);
+                    setServiceOpen(false);
+                  }}
+                >
+                  <Text style={newStyles.dropdownItemText}>{s.name}</Text>
+                  <Text style={newStyles.serviceDetailText}>
+                    {s.duration_min ? `• ${s.duration_min} phút   ` : ''}
+                    {s.base_price != null
+                      ? `• ${Number(s.base_price).toLocaleString()}₫`
+                      : ''}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
         </View>
       )}
-      {selectedServiceId && chosenService && (
-        <Text style={{ color: '#555', marginTop: 6 }}>
-          Đã chọn: {chosenService.name}
-          {chosenService.duration_min
-            ? ` • ${chosenService.duration_min} phút`
-            : ''}
-          {chosenService.base_price != null
-            ? ` • ${Number(chosenService.base_price).toLocaleString()}₫`
-            : ''}
-        </Text>
-      )}
-    </>
+    </Card>
   );
 
   const DoctorSelector = (
-    <>
-      <Text style={styles.sectionTitle}>Chọn bác sĩ</Text>
+    <Card title="3. Chọn Bác Sĩ">
       <TouchableOpacity
-        style={styles.dropdownHeader}
+        style={[
+          newStyles.dropdownHeader,
+          !selectedServiceId && newStyles.dropdownDisabled,
+        ]}
         onPress={() => selectedServiceId && setDoctorOpen(v => !v)}
         disabled={!selectedServiceId || doctorsFiltered.length === 0}
       >
         <Text
-          style={{
-            fontWeight: '600',
-            color:
-              selectedServiceId && doctorsFiltered.length ? '#111' : '#999',
-          }}
+          style={[
+            newStyles.dropdownHeaderText,
+            !selectedServiceId && { color: COLORS.subtitle },
+          ]}
         >
           {doctorId
-            ? doctors.find(d => d.id === doctorId)?.name || 'Bác sĩ'
-            : doctorsFiltered.length
-            ? 'Chọn bác sĩ'
+            ? doctorObj?.name || 'Bác sĩ'
             : selectedServiceId
-            ? 'Không có bác sĩ'
-            : 'Chọn dịch vụ trước'}
+              ? doctorsFiltered.length
+                ? 'Chọn bác sĩ'
+                : 'Không có bác sĩ phù hợp'
+              : '⬅ Vui lòng chọn dịch vụ'}
         </Text>
-        <Text>{doctorOpen ? '▴' : '▾'}</Text>
+        <Text style={{ color: selectedServiceId ? COLORS.textDark : COLORS.subtitle }}>
+          {doctorOpen ? '▲' : '▼'}
+        </Text>
       </TouchableOpacity>
 
-      {doctorOpen && (
-        <View style={styles.dropdownBody}>
+      {doctorOpen && selectedServiceId && (
+        <View style={newStyles.dropdownBody}>
           {doctorsFiltered.length === 0 ? (
-            <Text style={{ color: '#666', padding: 8 }}>
-              Chưa có bác sĩ phù hợp.
+            <Text style={newStyles.warningText}>
+              Không tìm thấy bác sĩ cho chuyên khoa đã chọn.
             </Text>
-          ) : null}
-          <ScrollView style={{ maxHeight: 260 }}>
-            {doctorsFiltered.map(d => {
-              const selected = doctorId === d.id;
-              return (
-                <TouchableOpacity
-                  key={d.id}
-                  style={[
-                    styles.doctorRow,
-                    selected ? styles.doctorRowSelected : undefined,
-                  ]}
-                  onPress={() => {
-                    setDoctorId(d.id);
-                    setDoctorOpen(false);
-                  }}
-                >
-                  <Avatar uri={d.photoURL} name={d.name} size={44} />
-                  <View style={{ marginLeft: 12, flex: 1 }}>
-                    <Text
-                      style={[
-                        styles.doctorName,
-                        selected ? { color: '#fff' } : {},
-                      ]}
-                    >
-                      {d.name || 'Bác sĩ ' + d.id}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.doctorSubtitle,
-                        selected ? { color: '#e6f0ff' } : {},
-                      ]}
-                    >
-                      {specialtyMap[d.specialty_id || ''] ||
-                        'Chuyên khoa chưa đặt'}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+          ) : (
+            <ScrollView style={{ maxHeight: 260 }}>
+              {doctorsFiltered.map(d => {
+                const selected = doctorId === d.id;
+                return (
+                  <TouchableOpacity
+                    key={d.id}
+                    style={[
+                      newStyles.doctorRow,
+                      selected && newStyles.doctorRowSelected,
+                    ]}
+                    onPress={() => {
+                      setDoctorId(d.id);
+                      setDoctorOpen(false);
+                      setSelectedShiftId(null); // Reset ca làm khi đổi bác sĩ
+                    }}
+                  >
+                    <Avatar uri={d.photoURL} name={d.name} size={44} />
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Text 
+                        // ✅ Áp dụng màu chữ trực tiếp theo trạng thái selected
+                        style={[
+                            newStyles.doctorName,
+                            selected && { color: '#fff' }
+                        ]}
+                      >
+                        {d.name || 'Bác sĩ ' + d.id}
+                      </Text>
+                      <Text 
+                        // ✅ Áp dụng màu chữ trực tiếp theo trạng thái selected
+                        style={[
+                            newStyles.doctorSubtitle,
+                            selected && { color: COLORS.accentLight }
+                        ]}
+                      >
+                        {specialtyMap[d.specialty_id || ''] || 'Chuyên khoa'}
+                      </Text>
+                    </View>
+                    {selected && <Text style={{ color: '#fff', fontSize: 20 }}>✓</Text>}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
         </View>
       )}
-    </>
+    </Card>
   );
 
-  const DateSelector = (
-    <>
-      <Text style={styles.sectionTitle}>Chọn ngày</Text>
+  const DateShiftSelector = (
+    <Card title="4. Chọn Ngày & Giờ Khám">
+      {/* Date Selector */}
+      <Text style={newStyles.subSectionTitle}>Ngày khám ({DAYS[weekdayFromYMD(date)]})</Text>
       <TouchableOpacity
         onPress={() => {
           if (DateTimePicker) setShowNativeDatePicker(true);
           else setCalendarOpen(true);
         }}
-        style={styles.dateInput}
+        style={[newStyles.dateInput, !doctorId && newStyles.dropdownDisabled]}
+        disabled={!doctorId}
       >
-        <Text style={{ color: '#111' }}>{date}</Text>
+        <Text style={{ color: doctorId ? COLORS.textDark : COLORS.subtitle, fontWeight: '600' }}>{date}</Text>
+        <Text style={{ color: doctorId ? COLORS.textDark : COLORS.subtitle }}>▼</Text>
       </TouchableOpacity>
 
       {/* Native Picker */}
@@ -598,6 +641,7 @@ export default function BookScreen() {
             if (Platform.OS === 'android') setShowNativeDatePicker(false);
             if (event?.type === 'dismissed') return;
             if (d) setDate(toYMD(d));
+            setSelectedShiftId(null); // Reset ca làm khi đổi ngày
           }}
         />
       )}
@@ -610,14 +654,15 @@ export default function BookScreen() {
         onPick={(d: Date) => {
           setDate(toYMD(d));
           setCalendarOpen(false);
+          setSelectedShiftId(null); // Reset ca làm khi đổi ngày
         }}
       />
-    </>
-  );
-
-  const ShiftSelector = (
-    <>
-      <Text style={styles.sectionTitle}>Chọn ca làm</Text>
+      
+      {/* Shift Selector */}
+      <Text style={[newStyles.subSectionTitle, { marginTop: 15 }]}>
+        Ca làm ({shiftsForDate.length} ca khả dụng)
+      </Text>
+      
       {doctorId ? (
         shiftsForDate.length > 0 ? (
           <FlatList
@@ -625,137 +670,143 @@ export default function BookScreen() {
             showsHorizontalScrollIndicator={false}
             data={shiftsForDate}
             keyExtractor={s => s.id}
-            contentContainerStyle={{ paddingVertical: 8 }}
+            contentContainerStyle={{ paddingVertical: 4 }}
             renderItem={({ item }) => {
               const disabled = bookedForDate.some(b =>
                 overlap(b.start, b.end, item.start_time, item.end_time),
               );
               const selected = selectedShiftId === item.id;
+              
+              // Tạo một chuỗi thông tin phụ (Phòng/Đã kín)
+              const subInfo = disabled 
+                ? 'Đã kín' 
+                : item.room_id 
+                  ? roomsMap[item.room_id] ? `P. ${roomsMap[item.room_id]}` : 'Có phòng' 
+                  : 'N/A';
+
               return (
                 <TouchableOpacity
                   onPress={() => !disabled && setSelectedShiftId(item.id)}
                   style={[
-                    styles.chip,
-                    selected ? styles.chipSelected : undefined,
-                    disabled && {
-                      opacity: 0.5,
-                      backgroundColor: '#f3f4f6',
-                      borderColor: '#eee',
-                    },
+                    newStyles.chip,
+                    selected && newStyles.chipSelected,
+                    disabled && newStyles.chipDisabled,
                   ]}
+                  disabled={disabled}
                 >
-                  <Text
-                    style={selected ? styles.chipTextSelected : styles.chipText}
-                  >
-                    {item.start_time} - {item.end_time}
+                  <Text style={selected ? newStyles.chipTextSelected : newStyles.chipText}>
+                    {item.start_time.substring(0, 5)} - {item.end_time.substring(0, 5)}
                   </Text>
-                  {item.room_id ? (
-                    <Text
-                      style={{
-                        marginLeft: 6,
-                        fontSize: 11,
-                        color: selected ? '#e9f2ff' : '#666',
-                      }}
-                    >
-                      {roomsMap[item.room_id]
-                        ? `Phòng ${roomsMap[item.room_id]}`
-                        : `Phòng ${item.room_id}`}
-                    </Text>
-                  ) : null}
-                  {disabled ? (
-                    <Text
-                      style={{ marginLeft: 6, fontSize: 11, color: '#999' }}
-                    >
-                      Đã kín
-                    </Text>
-                  ) : null}
+                  <Text style={[
+                    newStyles.chipSubText, 
+                    selected && { color: COLORS.accentLight }, 
+                    disabled && { color: COLORS.subtitle }
+                  ]}>
+                    {subInfo}
+                  </Text>
                 </TouchableOpacity>
               );
             }}
           />
         ) : (
-          <Text style={{ color: '#b33' }}>
+          <Text style={{ color: COLORS.danger, fontWeight: '600' }}>
             Bác sĩ chưa có ca làm việc cho ngày {date}. Vui lòng chọn ngày khác.
           </Text>
         )
       ) : (
-        <Text style={{ color: '#666' }}>Hãy chọn bác sĩ trước.</Text>
+        <Text style={{ color: COLORS.subtitle }}>Hãy chọn bác sĩ trước.</Text>
       )}
-    </>
+      
+      {/* Tóm tắt ca đã chọn */}
+      {selectedShiftId && (
+        <View style={{ marginTop: 15, padding: 10, backgroundColor: COLORS.accentLight, borderRadius: 8 }}>
+            <Text style={{ color: COLORS.textDark, fontWeight: '700' }}>
+                Đã chọn: {date}
+                <Text style={{ color: COLORS.accent }}> • </Text>
+                {(() => {
+                    const s = shiftsForDate.find(x => x.id === selectedShiftId);
+                    // Hiển thị giờ, phút (cắt bỏ giây)
+                    return s ? `${s.start_time.substring(0, 5)} - ${s.end_time.substring(0, 5)}` : '--:--';
+                })()}
+            </Text>
+        </View>
+      )}
+    </Card>
   );
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Đặt lịch khám</Text>
+    <SafeAreaView style={newStyles.safeArea}>
+      <ScrollView contentContainerStyle={newStyles.container} showsVerticalScrollIndicator={false}>
+        <Text style={newStyles.pageTitle}>Đặt lịch khám mới</Text>
+        <Text style={newStyles.pageSubtitle}>Điền thông tin theo các bước dưới đây để hoàn tất việc đặt lịch.</Text>
+        
+        {SpecialtySelector}
+        <View style={newStyles.spacer} />
+        {ServiceSelector}
+        <View style={newStyles.spacer} />
+        {DoctorSelector}
+        <View style={newStyles.spacer} />
+        {DateShiftSelector}
+        <View style={newStyles.spacer} />
 
-      {SpecialtySelector}
-      {ServiceSelector}
-      {DoctorSelector}
-      {DateSelector}
-      {ShiftSelector}
-
-      {/* Đặt hộ người khác */}
-      <View style={{ marginTop: 12 }}>
-        <Text style={styles.sectionTitle}>
-          Đặt hộ người khác (không bắt buộc)
-        </Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity
-            onPress={() => setBookingForOther(v => !v)}
-            style={[styles.switchBtn, bookingForOther && styles.switchBtnOn]}
-          >
-            <Text
-              style={{
-                color: bookingForOther ? '#fff' : '#111',
-                fontWeight: '600',
-              }}
-            >
-              {bookingForOther ? 'Bật' : 'Tắt'}
+        {/* Đặt hộ người khác */}
+        <Card title="5. Dành cho người khác (Tùy chọn)">
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <Text style={{ color: COLORS.textDark, fontWeight: '600' }}>
+              {bookingForOther ? 'Đang đặt hộ người khác' : 'Đặt cho bản thân'}
             </Text>
-          </TouchableOpacity>
-          <Text style={{ marginLeft: 8, color: '#444' }}>
-            {bookingForOther ? 'Đang đặt hộ' : 'Không đặt hộ'}
-          </Text>
-        </View>
-        {bookingForOther && (
-          <View style={{ marginTop: 8 }}>
-            <Input
-              placeholder="Nhập UID bệnh nhân"
-              value={otherPatientId}
-              onChangeText={setOtherPatientId}
-            />
+            <TouchableOpacity
+              onPress={() => {
+                setBookingForOther(v => !v);
+                setOtherPatientId('');
+              }}
+              style={[newStyles.switchBtn, bookingForOther && newStyles.switchBtnOn]}
+            >
+              <Text
+                style={[
+                    newStyles.switchBtnText,
+                    bookingForOther && { color: '#fff' }
+                ]}
+              >
+                {bookingForOther ? 'Tắt' : 'Bật'}
+              </Text>
+            </TouchableOpacity>
           </View>
-        )}
-      </View>
+          {bookingForOther && (
+            <View style={{ marginTop: 8 }}>
+              <Input
+                placeholder="Nhập UID bệnh nhân (VD: xyz123)"
+                value={otherPatientId}
+                onChangeText={setOtherPatientId}
+              />
+            </View>
+          )}
+        </Card>
+        
+        <View style={{ height: 100 }} /> 
+      </ScrollView>
 
-      <View style={{ height: 12 }} />
-      <Button
-        title="Xác nhận đặt lịch"
-        onPress={onConfirm}
-        disabled={
-          !selectedSpecialtyId ||
-          !selectedServiceId ||
-          !doctorId ||
-          !date ||
-          !selectedShiftId
-        }
-      />
-      {selectedShiftId ? (
-        <View style={{ alignItems: 'center', marginTop: 8 }}>
-          <Text style={{ color: '#333', fontWeight: '600' }}>
-            Đã chọn: {date} •{' '}
-            {(() => {
-              const s = shiftsForDate.find(x => x.id === selectedShiftId);
-              return s ? `${s.start_time} - ${s.end_time}` : '--:--';
-            })()}
-          </Text>
-        </View>
-      ) : null}
-    </View>
+      {/* FOOTER CỐ ĐỊNH */}
+      <View style={newStyles.footer}>
+        <Button
+          title="Xác nhận & Đặt lịch"
+          onPress={onConfirm}
+          disabled={
+            !selectedSpecialtyId ||
+            !selectedServiceId ||
+            !doctorId ||
+            !date ||
+            !selectedShiftId ||
+            (bookingForOther && !otherPatientId)
+          }
+          style={{ backgroundColor: COLORS.primary }}
+        />
+      </View>
+    </SafeAreaView>
   );
 }
 
-/* --------------------------- Calendar Modal --------------------------- */
+/* --------------------------- Calendar Modal (GIỮ NGUYÊN) --------------------------- */
 function CalendarModal({
   open,
   onClose,
@@ -795,9 +846,9 @@ function CalendarModal({
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={[styles.modalContent, { maxWidth: 360 }]}>
-          <View style={styles.calendarHeader}>
+      <View style={_calendarModalStyles.modalBackdrop}>
+        <View style={[_calendarModalStyles.modalContent, { maxWidth: 360 }]}>
+          <View style={_calendarModalStyles.calendarHeader}>
             <TouchableOpacity
               onPress={() => {
                 const prev = new Date(month);
@@ -824,7 +875,7 @@ function CalendarModal({
             </TouchableOpacity>
           </View>
 
-          <View style={styles.calendarGrid}>
+          <View style={_calendarModalStyles.calendarGrid}>
             {DAYS.map(h => (
               <Text key={h} style={{ textAlign: 'center', fontWeight: '700' }}>
                 {h}
@@ -832,16 +883,21 @@ function CalendarModal({
             ))}
             {monthCells(month).map((d, idx) => {
               const dim = month.getMonth() === d.getMonth();
+              const isSelected = toYMD(d) === toYMD(initialDate);
               return (
                 <TouchableOpacity
                   key={idx}
-                  style={styles.calendarCell}
+                  style={[
+                    _calendarModalStyles.calendarCell,
+                    isSelected && { backgroundColor: COLORS.accentLight, borderRadius: 4 },
+                  ]}
                   onPress={() => onPick(d)}
                 >
                   <Text
                     style={{
                       textAlign: 'center',
-                      color: dim ? '#111' : '#bbb',
+                      color: dim ? COLORS.textDark : COLORS.subtitle,
+                      fontWeight: isSelected ? '700' : '400',
                     }}
                   >
                     {d.getDate()}
@@ -866,96 +922,204 @@ function CalendarModal({
   );
 }
 
-/* ------------------------------- Styles ------------------------------- */
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#fff' },
-  title: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
+/* ------------------------------- Styles MỚI (ĐÃ SỬA LỖI) ------------------------------- */
+const newStyles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
+  container: { padding: 16 },
+  
+  // Title & Subtitle
+  pageTitle: { fontSize: 22, fontWeight: '800', color: COLORS.textDark, marginBottom: 4 },
+  pageSubtitle: { fontSize: 14, color: COLORS.subtitle, marginBottom: 15 },
+  spacer: { height: 16 },
 
-  sectionTitle: {
-    marginTop: 12,
+  // Card Component
+  card: {
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 14,
+    padding: 16,
+    shadowColor: COLORS.shadowColor,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+    marginBottom: 0, // Xóa margin bottom ở đây, dùng spacer ở ngoài
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.primary,
+    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    paddingBottom: 8,
+  },
+  subSectionTitle: {
+    marginTop: 10,
     marginBottom: 6,
     fontWeight: '600',
-    color: '#333',
+    color: COLORS.textDark,
+  },
+  warningText: {
+    color: COLORS.danger, 
+    padding: 8, 
+    fontWeight: '500' 
   },
 
-  // doctor
+  // Dropdown/Input Styles (Generic)
+  dropdownHeader: {
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardBackground,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dropdownHeaderText: {
+    fontWeight: '600',
+    color: COLORS.textDark,
+    fontSize: 15,
+  },
+  dropdownDisabled: {
+    backgroundColor: '#f5f5f5',
+    borderColor: '#e0e0e0',
+  },
+  dropdownBody: {
+    marginTop: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardBackground,
+    padding: 4,
+    maxHeight: 220,
+  },
+  dropdownItem: { 
+    paddingVertical: 10, 
+    paddingHorizontal: 10, 
+    borderRadius: 8,
+    marginVertical: 2,
+  },
+  dropdownItemSelected: {
+    backgroundColor: COLORS.accentLight,
+  },
+  dropdownItemText: {
+    fontWeight: '600',
+    color: COLORS.textDark,
+  },
+  serviceDetailText: {
+    color: COLORS.subtitle,
+    fontSize: 12,
+    marginTop: 2,
+  },
+
+  // Doctor Selector
   doctorRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
+    padding: 10,
     borderRadius: 10,
-    marginVertical: 6,
-    backgroundColor: '#fff',
+    marginVertical: 4,
+    backgroundColor: COLORS.cardBackground,
     borderWidth: 1,
-    borderColor: '#f0f0f0',
+    borderColor: 'transparent',
   },
-  doctorRowSelected: { backgroundColor: '#1976d2', borderColor: '#155fa6' },
-  doctorName: { fontWeight: '700', fontSize: 15, color: '#111' },
-  doctorSubtitle: { color: '#666', fontSize: 13, marginTop: 2 },
+  // ✅ ĐÃ SỬA: Chỉ giữ lại style nền/viền. Màu chữ được áp dụng trong phần render.
+  doctorRowSelected: { 
+    backgroundColor: COLORS.accent, 
+    borderColor: COLORS.accent,
+  },
+  doctorName: { fontWeight: '700', fontSize: 15, color: COLORS.textDark },
+  doctorSubtitle: { color: COLORS.subtitle, fontSize: 13, marginTop: 2 },
 
-  // chips
+  // Date Input
+  dateInput: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardBackground,
+  },
+
+  // Chips (Shift Selector)
   chip: {
     paddingVertical: 8,
     paddingHorizontal: 12,
     marginRight: 8,
     borderRadius: 8,
-    backgroundColor: '#eee',
+    backgroundColor: COLORS.accentLight,
     borderWidth: 1,
-    borderColor: '#eee',
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderColor: COLORS.accentLight,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
   },
-  chipSelected: { backgroundColor: '#1976d2', borderColor: '#1976d2' },
-  chipText: { color: '#111' },
-  chipTextSelected: { color: '#fff' },
-
-  // dropdown
-  dropdownHeader: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#eee',
-    backgroundColor: '#fff',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  chipSelected: { 
+    backgroundColor: COLORS.accent, 
+    borderColor: COLORS.accent,
   },
-  dropdownBody: {
-    marginTop: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#eee',
-    backgroundColor: '#fff',
-    padding: 6,
+  chipDisabled: {
+    opacity: 0.6,
+    backgroundColor: '#f5f5f5',
+    borderColor: '#e0e0e0',
   },
-  dropdownItem: { paddingVertical: 10, paddingHorizontal: 10, borderRadius: 8 },
-
-  // date
-  dateInput: {
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#eee',
-    backgroundColor: '#fff',
+  chipText: { 
+    color: COLORS.textDark, 
+    fontWeight: '600' 
   },
-
-  // switch mimic
+  chipTextSelected: { 
+    color: '#fff', 
+    fontWeight: '600' 
+  },
+  chipSubText: {
+    fontSize: 11,
+    color: COLORS.subtitle,
+    marginTop: 2,
+  },
+  
+  // Switch
   switchBtn: {
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 15,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: COLORS.border,
     backgroundColor: '#f5f5f5',
   },
   switchBtnOn: {
-    backgroundColor: '#1976d2',
-    borderColor: '#1976d2',
+    backgroundColor: COLORS.accent,
+    borderColor: COLORS.accent,
+  },
+  // ✅ Đã thêm style cho Text để áp dụng màu chữ bên trong TouchableOpacity
+  switchBtnText: {
+    color: COLORS.textDark,
+    fontWeight: '600',
   },
 
-  // modal & calendar
+  // Footer (Sticky Button)
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    backgroundColor: COLORS.cardBackground,
+    shadowColor: COLORS.shadowColor,
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 8,
+  },
+});
+
+// Styles cũ cho Calendar Modal (Đặt tên khác để tránh conflict)
+const _calendarModalStyles = StyleSheet.create({
   modalBackdrop: {
     flex: 1,
     justifyContent: 'center',
@@ -963,7 +1127,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     margin: 20,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.cardBackground,
     borderRadius: 8,
     padding: 12,
   },
@@ -975,4 +1139,15 @@ const styles = StyleSheet.create({
   },
   calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   calendarCell: { width: '14.2857%', paddingVertical: 8 },
+});
+
+// Giữ lại styles cũ trống để đảm bảo không có lỗi tham chiếu nếu components khác vẫn dùng
+const styles = StyleSheet.create({
+    container: {},
+    title: {},
+    modalBackdrop: _calendarModalStyles.modalBackdrop,
+    modalContent: _calendarModalStyles.modalContent,
+    calendarHeader: _calendarModalStyles.calendarHeader,
+    calendarGrid: _calendarModalStyles.calendarGrid,
+    calendarCell: _calendarModalStyles.calendarCell,
 });

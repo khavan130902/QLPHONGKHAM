@@ -45,11 +45,9 @@ export default function InvoicesScreen() {
       if (!user) return;
       setLoading(true);
       try {
-        // Lấy invoice của bệnh nhân
         const list = await getInvoicesForPatient(user.uid);
         setItems(Array.isArray(list) ? list : []);
 
-        // Prefetch thông tin bác sĩ để hiển thị avatar + tên
         const doctorIds = Array.from(
           new Set((list || []).map((x: any) => x.doctorId).filter(Boolean)),
         ) as string[];
@@ -91,7 +89,7 @@ export default function InvoicesScreen() {
   return (
     <View style={styles.container}>
       {loading ? (
-        <ActivityIndicator />
+        <ActivityIndicator size="large" style={{ marginTop: 20 }} />
       ) : (
         <FlatList
           data={[...items].sort(
@@ -101,26 +99,26 @@ export default function InvoicesScreen() {
           )}
           keyExtractor={i => i.id}
           ListEmptyComponent={
-            <Text style={{ color: '#666' }}>Không có hóa đơn</Text>
+            <View style={styles.emptyWrap}>
+              <Text style={styles.empty}>Không có hóa đơn</Text>
+            </View>
           }
           renderItem={({ item }) => {
             const doctor = doctorsMap[item.doctorId];
             const s = statusUi(item.status);
+
             return (
               <TouchableOpacity
                 style={styles.card}
                 onPress={() =>
                   (navigation as any).navigate('InvoiceDetail', { id: item.id })
                 }
-                activeOpacity={0.85}
+                activeOpacity={0.9}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Avatar
-                    uri={doctor?.photoURL}
-                    name={doctor?.name}
-                    size={44}
-                  />
-                  <View style={{ marginLeft: 10, flex: 1 }}>
+                <View style={styles.row}>
+                  <Avatar uri={doctor?.photoURL} name={doctor?.name} size={48} />
+
+                  <View style={styles.info}>
                     <Text style={styles.title} numberOfLines={2}>
                       {item.title || 'Hóa đơn dịch vụ'}
                     </Text>
@@ -128,20 +126,20 @@ export default function InvoicesScreen() {
                       Ngày tạo: {formatTs(item.createdAt)}
                     </Text>
                     <Text style={styles.sub}>
-                      Tổng: {formatMoney(item.total ?? item.amount)}
+                      Tổng tiền: {formatMoney(item.total ?? item.amount)}
                     </Text>
                   </View>
                 </View>
 
-                <View style={[styles.pill, { backgroundColor: s.bg }]}>
-                  <Text style={{ fontWeight: '800', color: s.color }}>
+                <View style={[styles.statusPill, { backgroundColor: s.bg }]}>
+                  <Text style={[styles.statusText, { color: s.color }]}>
                     {s.text}
                   </Text>
                 </View>
               </TouchableOpacity>
             );
           }}
-          contentContainerStyle={{ paddingBottom: 16 }}
+          contentContainerStyle={{ paddingBottom: 20 }}
         />
       )}
     </View>
@@ -149,22 +147,47 @@ export default function InvoicesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#F4F6F8' },
+  container: { flex: 1, padding: 16, backgroundColor: '#F6F7FB' },
+
+  // Empty
+  emptyWrap: { paddingTop: 40, alignItems: 'center' },
+  empty: { color: '#7B8794', fontSize: 16 },
+
+  // Card
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.06)',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
-  title: { fontWeight: '800', color: '#0F172A' },
-  sub: { color: '#475569', marginTop: 2 },
-  pill: {
+
+  row: { flexDirection: 'row', alignItems: 'center' },
+  info: { marginLeft: 12, flex: 1 },
+
+  title: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  sub: { color: '#4B5563', fontSize: 13, marginTop: 2 },
+
+  statusPill: {
     alignSelf: 'flex-start',
-    marginTop: 8,
+    marginTop: 12,
     paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

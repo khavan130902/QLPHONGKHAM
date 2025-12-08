@@ -1,3 +1,4 @@
+// file: ManageShiftsScreen.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -11,14 +12,14 @@ import {
   ScrollView,
   useWindowDimensions,
   Platform,
-  Dimensions, // Thêm Dimensions để dùng cho responsive
+  Switch, 
 } from 'react-native';
 import Avatar from '@/components/Avatar';
 import Input from '@/components/Input';
 import Button from '@/components/Button';
 import db from '@/services/firestore';
 import safeAlert from '@/utils/safeAlert';
-import { generateSlotsForDate } from '@/services/timeSlots';
+import Icon from '@react-native-vector-icons/feather';
 
 // @ts-ignore (optional dependency)
 let DateTimePicker: any = null;
@@ -31,11 +32,11 @@ try {
 
 const DAYS = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
 
-/** ====== BẢNG MÀU MỚI ====== */
+/** ====== BẢNG MÀU THỐNG NHẤT VÀ HIỆN ĐẠI HƠN ====== */
 const COLORS = {
-  primary: '#2596be',       // Xanh đậm chủ đạo (dùng lại màu appBar)
+  primary: '#2596be',       // Xanh đậm chủ đạo
   primaryLight: '#E3F2FD',  // Xanh nhạt cho nền active/selected
-  secondary: '#FF9800',     // Cam cho hành động phụ/nổi bật
+  secondary: '#FF9800',     // Cam (Dùng cho các điểm nhấn phụ)
   success: '#4CAF50',       // Xanh lá cho Sửa
   danger: '#F44336',        // Đỏ cho Xóa
   background: '#F8F9FA',    // Nền tổng thể: xám rất nhạt
@@ -47,31 +48,40 @@ const COLORS = {
   shadowColor: '#000',      // Màu đổ bóng
 };
 
-/** ====== Date helpers (LOCAL-safe) ====== */
-/** tạo Date local ghim 12:00 để tránh lệch timezone/DST */
+/** ====== Date helpers ====== */
 function dateAtNoonLocal(y: number, mZeroBased: number, d: number) {
   return new Date(y, mZeroBased, d, 12, 0, 0, 0);
 }
-/** parse 'YYYY-MM-DD' → Date local (12:00) */
 function parseYMDToLocalDate(ymd: string): Date | null {
   const parts = ymd.split('-').map(p => parseInt(p, 10));
   if (parts.length !== 3 || parts.some(isNaN)) return null;
   const [y, m, d] = parts;
   return dateAtNoonLocal(y, m - 1, d);
 }
-/** format Date → 'YYYY-MM-DD' (dựa theo local components) */
 function toYMD(date: Date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
-/** weekday (0..6) nhưng tính theo UTC của "ngày thuần" để đồng nhất đa máy */
+
+// Hàm mới: Chuyển YYYY-MM-DD sang DD/MM/YYYY để hiển thị
+function formatDateDisplay(ymd: string) {
+    if (!ymd) return '';
+    const dateObj = parseYMDToLocalDate(ymd); 
+    if (!dateObj) return ymd; // Trả về nguyên trạng nếu lỗi
+  
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    return `${d}/${m}/${y}`; 
+}
+
 function weekdayFromYMD(ymd: string) {
   const parts = ymd.split('-').map(p => parseInt(p, 10));
   if (parts.length !== 3 || parts.some(isNaN)) return 0;
   const [y, m, d] = parts;
-  const utc = new Date(Date.UTC(y, m - 1, d, 12, 0, 0)); // 12:00 UTC để tránh biên
+  const utc = new Date(Date.UTC(y, m - 1, d, 12, 0, 0)); 
   return utc.getUTCDay();
 }
 
@@ -83,6 +93,9 @@ export default function ManageShiftsScreen() {
   const [specialties, setSpecialties] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Lấy ngày hiện tại ở định dạng YYYY-MM-DD
+  const todayYMD = useMemo(() => toYMD(new Date()), []);
+
   // UI state
   const [doctorPickerVisible, setDoctorPickerVisible] = useState(false);
   const [roomsCollapsed, setRoomsCollapsed] = useState(true);
@@ -91,36 +104,28 @@ export default function ManageShiftsScreen() {
   // form state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [doctorId, setDoctorId] = useState<string>('');
-  const [dayOfWeek, setDayOfWeek] = useState<number>(1);
+  
+  const [useSpecificDate, setUseSpecificDate] = useState(true); 
+  const [dayOfWeek, setDayOfWeek] = useState<number>(1); 
 
-  // luôn ưu tiên ngày cụ thể khi người dùng chọn (tự bật)
-  const [useSpecificDate, setUseSpecificDate] = useState(false);
-  const [specificDate, setSpecificDate] = useState<string>(''); // 'YYYY-MM-DD'
+  const [specificDate, setSpecificDate] = useState<string>(''); 
   const selectedDateObj = useMemo(
     () => (specificDate ? parseYMDToLocalDate(specificDate) : null),
     [specificDate],
   );
 
   const [showDatePicker, setShowDatePicker] = useState(false);
+  // Khởi tạo calendarMonth bằng ngày hiện tại
   const [calendarVisible, setCalendarVisible] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState<Date>(() => new Date());
 
   const [startTime, setStartTime] = useState<string>('09:00');
   const [endTime, setEndTime] = useState<string>('12:00');
   const [roomId, setRoomId] = useState<string | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-
-  const todayYMD = useMemo(() => toYMD(new Date()), []);
-  const [genFromDate, setGenFromDate] = useState<string>(todayYMD);
-  const [genToDate, setGenToDate] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 7);
-    return toYMD(d);
-  });
-
+  
   const [busy, setBusy] = useState(false);
 
-  // Tương tự, nếu doctor/room/specialty không tồn tại, tránh lỗi.
+  // Derived State (Giữ nguyên)
   const selectedDoctor = useMemo(
     () => doctors.find(d => d.id === doctorId) || {},
     [doctors, doctorId],
@@ -131,6 +136,14 @@ export default function ManageShiftsScreen() {
     [rooms, roomId],
   );
 
+  const specialtyMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    specialties.forEach(s => {
+      if (s && s.id) m[s.id] = s.name || '';
+    });
+    return m;
+  }, [specialties]);
+
 
   useEffect(() => {
     loadDoctors();
@@ -139,6 +152,7 @@ export default function ManageShiftsScreen() {
     loadShifts();
   }, []);
 
+  // load functions (Giữ nguyên)
   async function loadSpecialties() {
     try {
       const snap = await db.collection('specialties').orderBy('name').get();
@@ -147,14 +161,6 @@ export default function ManageShiftsScreen() {
       console.warn('load specialties', e);
     }
   }
-
-  const specialtyMap = useMemo(() => {
-    const m: Record<string, string> = {};
-    specialties.forEach(s => {
-      if (s && s.id) m[s.id] = s.name || '';
-    });
-    return m;
-  }, [specialties]);
 
   async function loadDoctors() {
     try {
@@ -197,7 +203,7 @@ export default function ManageShiftsScreen() {
     setEditingId(null);
     setDoctorId('');
     setDayOfWeek(1);
-    setUseSpecificDate(false);
+    setUseSpecificDate(true); 
     setSpecificDate('');
     setStartTime('09:00');
     setEndTime('12:00');
@@ -207,28 +213,36 @@ export default function ManageShiftsScreen() {
   function onEdit(item: any) {
     setEditingId(item.id);
     setDoctorId(item.doctor_id || '');
-    // Ưu tiên hiển thị lại ngày cụ thể nếu có
+    setStartTime(item.start_time || '09:00');
+    setEndTime(item.end_time || '12:00');
+    setRoomId(item.room_id || null);
+
     if (item.date) {
+      // Ca cụ thể
       setUseSpecificDate(true);
       setSpecificDate(item.date);
-      setDayOfWeek(weekdayFromYMD(item.date));
     } else {
+      // Ca định kỳ
       setUseSpecificDate(false);
       setSpecificDate('');
       setDayOfWeek(item.day_of_week ?? 1);
     }
-    setStartTime(item.start_time || '09:00');
-    setEndTime(item.end_time || '12:00');
-    setRoomId(item.room_id || null);
-    setFormVisible(true); // Đảm bảo form hiện ra khi edit
-    // Cuộn lên đầu trang (nếu cần)
-    // Tùy thuộc vào cách bạn quản lý ScrollView bên ngoài
+    
+    setFormVisible(true);
   }
 
   async function saveShift() {
     if (!doctorId) return safeAlert('Thông tin thiếu', 'Chọn bác sĩ');
     if (!startTime || !endTime)
       return safeAlert('Thông tin thiếu', 'Chọn giờ bắt đầu/kết thúc');
+    
+    // Kiểm tra logic theo chế độ đang chọn
+    if (useSpecificDate && !specificDate) {
+        return safeAlert('Thông tin thiếu', 'Chọn ngày cụ thể cho ca này');
+    }
+    if (!useSpecificDate && (dayOfWeek === undefined || dayOfWeek === null)) {
+        return safeAlert('Thông tin thiếu', 'Chọn Thứ trong tuần cho ca định kỳ');
+    }
 
     setBusy(true);
     try {
@@ -240,14 +254,14 @@ export default function ManageShiftsScreen() {
         updated_at: new Date().toISOString(),
       };
 
-      // Nếu có ngày cụ thể thì lưu ngày + day_of_week tính theo UTC
       if (useSpecificDate && specificDate) {
+        // Ca cụ thể
         payload.date = specificDate; // YYYY-MM-DD
-        payload.day_of_week = weekdayFromYMD(specificDate);
+        payload.day_of_week = weekdayFromYMD(specificDate); // Tự tính Thứ từ ngày
       } else {
-        // fallback theo dayOfWeek đang chọn (nếu bạn còn luồng theo thứ)
-        payload.date = null; // Quan trọng: phải xoá field date nếu không dùng
-        payload.day_of_week = dayOfWeek;
+        // Ca định kỳ theo Thứ
+        payload.date = null; // Quan trọng: Đặt là null để xác định ca định kỳ
+        payload.day_of_week = dayOfWeek; // (0..6)
       }
 
       if (editingId) {
@@ -291,53 +305,12 @@ export default function ManageShiftsScreen() {
     ]);
   }
 
-  async function onGenerateSlotsForDoctor() {
-    if (!doctorId)
-      return safeAlert('Chọn bác sĩ', 'Vui lòng chọn bác sĩ để sinh khung');
-    setBusy(true);
-    try {
-      const from = parseYMDToLocalDate(genFromDate);
-      const to = parseYMDToLocalDate(genToDate);
-      if (!from || !to) {
-        setBusy(false);
-        return safeAlert('Lỗi', 'Định dạng ngày không hợp lệ. Dùng YYYY-MM-DD');
-      }
-      if (from.getTime() > to.getTime()) {
-        setBusy(false);
-        return safeAlert('Lỗi', 'Ngày bắt đầu phải ≤ ngày kết thúc');
-      }
-
-      let day = new Date(from);
-      let totalCreated = 0;
-      let daysCount = 0;
-
-      while (day.getTime() <= to.getTime()) {
-        const iso = toYMD(day);
-        try {
-          const created = await generateSlotsForDate(doctorId, iso);
-          totalCreated += (created && created.length) || 0;
-        } catch (e) {
-          console.warn('generate slots for', iso, e);
-        }
-        daysCount++;
-        day.setDate(day.getDate() + 1);
-      }
-      safeAlert('Hoàn tất', `Tạo ${totalCreated} khung cho ${daysCount} ngày`);
-      setModalVisible(false);
-    } catch (e) {
-      console.warn('generate slots', e);
-      safeAlert('Lỗi', 'Không sinh được khung giờ');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  /** render 7×6 cells của tháng */
+  // render 7×6 cells của tháng (Giữ nguyên)
   function renderMonthDays(monthDate: Date) {
     const y = monthDate.getFullYear();
     const m = monthDate.getMonth();
     const first = dateAtNoonLocal(y, m, 1);
-    const startDay = first.getDay(); // 0..6
+    const startDay = first.getDay(); 
     const daysInMonth = new Date(y, m + 1, 0).getDate();
     const daysInPrev = new Date(y, m, 0).getDate();
     const cells: Array<Date | null> = [];
@@ -357,51 +330,34 @@ export default function ManageShiftsScreen() {
   function setDateFromObj(d: Date) {
     const iso = toYMD(d);
     setSpecificDate(iso);
-    setUseSpecificDate(true);
+    setUseSpecificDate(true); 
     setDayOfWeek(weekdayFromYMD(iso));
   }
 
-  // Chia cột (tối đa 2 cột) cho màn hình lớn hơn 900
   const isLargeScreen = width > 900;
-  const columnContainerStyle = isLargeScreen
-    ? styles.columnsContainer
-    : undefined;
-  const columnStyle = isLargeScreen ? styles.column : undefined;
-
-  return (
-    <ScrollView
-      style={styles.fullContainer}
-      contentContainerStyle={[
-        styles.scrollContent,
-        { paddingHorizontal: isLargeScreen ? 48 : 16 },
-      ]}
-    >
-      <View style={styles.appBar}>
-        <Text style={styles.appBarTitle}>Quản lý ca làm việc</Text>
-        <Text style={styles.appBarSubtitle}>
-          Tạo, chỉnh sửa, và phân công ca làm việc cho bác sĩ.
-        </Text>
-      </View>
-
-      <View style={columnContainerStyle}>
-        {/* CỘT 1: FORM TẠO/SỬA CA */}
-        <View style={[styles.card, columnStyle]}>
-          <View style={styles.cardHeader}>
+  
+  // Component Form (Tạo/Sửa)
+  const FormComponent = (
+    <View style={[styles.card, isLargeScreen ? styles.formColumn : undefined]}>
+        <View style={styles.cardHeader}>
             <Text style={styles.sectionTitle}>
               {editingId ? 'Sửa ca làm việc' : 'Tạo ca làm việc mới'}
             </Text>
+            {/* Thay thế Text bằng Icon */}
             <TouchableOpacity
               onPress={() => setFormVisible(v => !v)}
               style={styles.toggleButton}
             >
-              <Text style={styles.toggleButtonText}>
-                {formVisible ? 'Ẩn form' : 'Hiện form'}
-              </Text>
+              <Icon 
+                name={formVisible ? 'chevron-up' : 'chevron-down'} 
+                size={24} 
+                color={COLORS.primary} 
+              />
             </TouchableOpacity>
-          </View>
+        </View>
 
-          {/* Form (toggle show/hide) */}
-          {formVisible && (
+        {/* Form (toggle show/hide) */}
+        {formVisible && (
             <View>
               {/* Doctor picker */}
               <Text style={styles.label}>Chọn bác sĩ</Text>
@@ -410,18 +366,18 @@ export default function ManageShiftsScreen() {
                 onPress={() => setDoctorPickerVisible(true)}
               >
                 {doctorId ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={styles.doctorInfoRow}>
                     <Avatar
                       uri={selectedDoctor.photoURL}
                       name={selectedDoctor.name}
                       size={40}
                     />
-                    <View style={{ marginLeft: 12 }}>
+                    <View style={styles.doctorInfoText}>
                       <Text style={styles.doctorName}>
                         {selectedDoctor.name || 'Chọn bác sĩ'}
                       </Text>
                       <Text style={styles.doctorSpecialty}>
-                        {specialtyMap[selectedDoctor.specialty_id] || ''}
+                        {specialtyMap[selectedDoctor.specialty_id] || 'Chưa rõ'}
                       </Text>
                     </View>
                   </View>
@@ -430,151 +386,197 @@ export default function ManageShiftsScreen() {
                 )}
               </TouchableOpacity>
 
-              {/* Chọn ngày */}
+              {/* Toggle Chọn Ngày Cụ Thể / Thứ Trong Tuần */}
               <View style={styles.formSection}>
-                <Text style={styles.label}>Ngày (Cụ thể)</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    if (DateTimePicker) setShowDatePicker(true);
-                    else setCalendarVisible(true);
-                  }}
-                  style={styles.dateInput}
-                >
-                  <Text
-                    style={{
-                      color: specificDate ? COLORS.textDark : COLORS.placeholder,
-                      fontWeight: '500',
+                <View style={styles.toggleRow}>
+                    <Text style={[styles.label, {marginTop: 0, marginBottom: 0}]}>
+                        Loại ca: {useSpecificDate ? 'Ngày cụ thể' : 'Định kỳ (Theo Thứ)'}
+                    </Text>
+                    <Switch
+                        value={useSpecificDate}
+                        onValueChange={setUseSpecificDate}
+                        thumbColor={useSpecificDate ? COLORS.primary : COLORS.textLight}
+                        trackColor={{ false: COLORS.border, true: COLORS.primaryLight }}
+                    />
+                </View>
+                {/* ------------------------------------------- */}
+                {/* 1. CHỌN NGÀY CỤ THỂ (UseSpecificDate = TRUE) */}
+                {/* ------------------------------------------- */}
+                {useSpecificDate ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (DateTimePicker) setShowDatePicker(true);
+                      else setCalendarVisible(true);
                     }}
+                    style={styles.dateInput}
                   >
-                    {specificDate || 'YYYY-MM-DD'}
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Native DateTimePicker (iOS/Android) */}
-                {showDatePicker && DateTimePicker && (
-                  <DateTimePicker
-                    value={
-                      selectedDateObj
-                        ? selectedDateObj
-                        : // mở tại hôm nay (12:00) để tránh lệch
-                          dateAtNoonLocal(
-                            new Date().getFullYear(),
-                            new Date().getMonth(),
-                            new Date().getDate(),
-                          )
-                    }
-                    mode="date"
-                    display={
-                      Platform.OS === 'ios' ? 'spinner' : 'calendar'
-                    }
-                    onChange={(event: any, date?: Date) => {
-                      // Android đóng dialog sau khi chọn/huỷ
-                      if (Platform.OS === 'android') setShowDatePicker(false);
-                      if (event?.type === 'dismissed') return;
-                      if (date) {
-                        const localNoon = dateAtNoonLocal(
-                          date.getFullYear(),
-                          date.getMonth(),
-                          date.getDate(),
-                        );
-                        setDateFromObj(localNoon);
-                      }
-                    }}
-                  />
-                )}
-
-                {/* Calendar nội bộ (Fallback) */}
-                <Modal
-                  visible={calendarVisible}
-                  transparent
-                  animationType="fade"
-                >
-                  <View style={styles.modalBackdrop}>
-                    <View style={[styles.modalContent, styles.calendarModal]}>
-                      <View style={styles.calendarHeader}>
-                        <TouchableOpacity
-                          onPress={() => {
-                            const prev = new Date(calendarMonth);
-                            prev.setMonth(prev.getMonth() - 1);
-                            setCalendarMonth(prev);
-                          }}
-                        >
-                          <Text style={styles.calendarNavText}>{'◀'}</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.calendarMonthText}>
-                          {calendarMonth.toLocaleString(undefined, {
-                            month: 'long',
-                            year: 'numeric',
-                          })}
-                        </Text>
-                        <TouchableOpacity
-                          onPress={() => {
-                            const next = new Date(calendarMonth);
-                            next.setMonth(next.getMonth() + 1);
-                            setCalendarMonth(next);
-                          }}
-                        >
-                          <Text style={styles.calendarNavText}>{'▶'}</Text>
-                        </TouchableOpacity>
-                      </View>
-                      <View style={styles.calendarGrid}>
-                        {['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'].map(h => (
-                          <Text
-                            key={h}
-                            style={styles.calendarDayHeader}
-                          >
-                            {h}
-                          </Text>
-                        ))}
-                        {renderMonthDays(calendarMonth).map(
-                          (cell: any, idx: number) => {
-                            if (!cell)
-                              return (
-                                <View key={idx} style={styles.calendarCell} />
-                              );
-                            const isThisMonth =
-                              cell.getMonth() === calendarMonth.getMonth();
-                            const isSelected =
-                              specificDate === toYMD(cell);
-                            return (
-                              <TouchableOpacity
-                                key={idx}
+                    {/* Thêm Icon Calendar */}
+                    <Icon 
+                      name="calendar" 
+                      size={18} 
+                      color={specificDate ? COLORS.textDark : COLORS.placeholder} 
+                      style={{ marginRight: 8 }} 
+                    />
+                    <Text
+                      style={{
+                        color: specificDate ? COLORS.textDark : COLORS.placeholder,
+                        fontWeight: '500',
+                      }}
+                    >
+                      {/* ĐÃ SỬA: Hiển thị ngày dưới dạng DD/MM/YYYY */}
+                      {formatDateDisplay(specificDate) || 'Chọn ngày làm việc'}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                /* -------------------------------------------------- */
+                /* 2. CHỌN THỨ TRONG TUẦN (UseSpecificDate = FALSE) */
+                /* -------------------------------------------------- */
+                    <View style={styles.daysContainer}>
+                        {[1, 2, 3, 4, 5, 6, 0].map(dayIndex => (
+                            <TouchableOpacity
+                                key={dayIndex}
+                                onPress={() => setDayOfWeek(dayIndex)}
                                 style={[
-                                  styles.calendarCell,
-                                  isSelected && styles.calendarCellSelected,
+                                    styles.dayChip,
+                                    dayOfWeek === dayIndex ? styles.chipSelected : styles.chipDefault
                                 ]}
-                                onPress={() => {
-                                  setDateFromObj(cell);
-                                  setCalendarVisible(false);
-                                }}
-                              >
-                                <Text
-                                  style={[
-                                    styles.calendarCellText,
-                                    !isThisMonth &&
-                                      styles.calendarCellOutsideMonth,
-                                    isSelected && styles.calendarCellTextSelected,
-                                  ]}
-                                >
-                                  {cell.getDate()}
+                            >
+                                <Text style={dayOfWeek === dayIndex ? styles.chipTextSelected : styles.chipTextDefault}>
+                                    {DAYS[dayIndex].replace('Chủ nhật', 'CN').replace('Thứ ', 'T')}
                                 </Text>
-                              </TouchableOpacity>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                )}
+              </View>
+
+              {/* Native DateTimePicker (iOS/Android) */}
+              {showDatePicker && DateTimePicker && (
+                <DateTimePicker
+                  value={
+                    selectedDateObj
+                      ? selectedDateObj
+                      : dateAtNoonLocal(
+                          new Date().getFullYear(),
+                          new Date().getMonth(),
+                          new Date().getDate(),
+                        )
+                  }
+                  mode="date"
+                  display={
+                    Platform.OS === 'ios' ? 'spinner' : 'calendar'
+                  }
+                  onChange={(event: any, date?: Date) => {
+                    if (Platform.OS === 'android') setShowDatePicker(false);
+                    if (event?.type === 'dismissed') return;
+                    if (date) {
+                      const localNoon = dateAtNoonLocal(
+                        date.getFullYear(),
+                        date.getMonth(),
+                        date.getDate(),
+                      );
+                      setDateFromObj(localNoon);
+                    }
+                  }}
+                />
+              )}
+
+              {/* Calendar nội bộ (Fallback Modal) - ĐÃ CẬP NHẬT */}
+              <Modal
+                visible={calendarVisible}
+                transparent
+                animationType="fade"
+              >
+                <View style={styles.modalBackdrop}>
+                  <View style={[styles.modalContent, styles.calendarModal]}>
+                    <View style={styles.calendarHeader}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          const prev = new Date(calendarMonth);
+                          prev.setMonth(prev.getMonth() - 1);
+                          setCalendarMonth(prev);
+                        }}
+                      >
+                        <Icon name="chevron-left" size={24} color={COLORS.primary} />
+                      </TouchableOpacity>
+                      <Text style={styles.calendarMonthText}>
+                        {calendarMonth.toLocaleString(undefined, {
+                          month: 'long',
+                          year: 'numeric',
+                        })}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => {
+                          const next = new Date(calendarMonth);
+                          next.setMonth(next.getMonth() + 1);
+                          setCalendarMonth(next);
+                        }}
+                      >
+                        <Icon name="chevron-right" size={24} color={COLORS.primary} />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.calendarGrid}>
+                      {['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'].map(h => (
+                        <Text
+                          key={h}
+                          style={styles.calendarDayHeader}
+                        >
+                          {h}
+                        </Text>
+                      ))}
+                      {renderMonthDays(calendarMonth).map(
+                        (cell: any, idx: number) => {
+                          if (!cell)
+                            return (
+                              <View key={idx} style={styles.calendarCell} />
                             );
-                          },
-                        )}
-                      </View>
-                      <View style={styles.modalActions}>
-                        <Button
-                          title="Đóng"
-                          onPress={() => setCalendarVisible(false)}
-                          style={styles.modalCancelButton}
-                          textStyle={styles.modalCancelButtonText}
-                        />
-                      </View>
+                          const cellYMD = toYMD(cell);
+                          const isThisMonth =
+                            cell.getMonth() === calendarMonth.getMonth();
+                          const isSelected =
+                            specificDate === cellYMD;
+                          const isToday = cellYMD === todayYMD; // Kiểm tra ngày hiện tại
+
+                          return (
+                            <TouchableOpacity
+                              key={idx}
+                              style={[
+                                styles.calendarCell,
+                                isToday && styles.calendarCellToday, // Highlight ngày hôm nay
+                                isSelected && styles.calendarCellSelected,
+                              ]}
+                              onPress={() => {
+                                setDateFromObj(cell);
+                                setCalendarVisible(false);
+                              }}
+                            >
+                              <Text
+                                style={[
+                                  styles.calendarCellText,
+                                  !isThisMonth &&
+                                    styles.calendarCellOutsideMonth,
+                                  isToday && styles.calendarCellTodayText, // Màu chữ cho ngày hôm nay
+                                  isSelected && styles.calendarCellTextSelected,
+                                ]}
+                              >
+                                {cell.getDate()}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        },
+                      )}
+                    </View>
+                    <View style={styles.modalActions}>
+                      <Button
+                        title="Đóng"
+                        onPress={() => setCalendarVisible(false)}
+                        style={styles.modalCancelButton}
+                        textStyle={styles.modalCancelButtonText}
+                      />
                     </View>
                   </View>
-                </Modal>
-              </View>
+                </View>
+              </Modal>
 
               {/* Thời gian */}
               <View style={styles.formSection}>
@@ -615,9 +617,12 @@ export default function ManageShiftsScreen() {
                   <Text style={styles.label}>
                     Phòng khám (Tuỳ chọn: {selectedRoom.name || 'Chưa chọn'})
                   </Text>
-                  <Text style={styles.toggleIcon}>
-                    {roomsCollapsed ? '▾' : '▴'}
-                  </Text>
+                   {/* Thay thế Text bằng Icon */}
+                  <Icon 
+                    name={roomsCollapsed ? 'chevron-down' : 'chevron-up'} 
+                    size={18} 
+                    color={COLORS.textLight} 
+                  />
                 </TouchableOpacity>
 
                 {!roomsCollapsed && (
@@ -651,42 +656,36 @@ export default function ManageShiftsScreen() {
               {/* Actions */}
               <View style={styles.actionsRow}>
                 <Button
-                  title={editingId ? 'Cập nhật' : 'Tạo ca'}
+                  title={editingId ? 'Cập nhật ca' : 'Tạo ca'}
                   onPress={saveShift}
-                  disabled={busy || !doctorId || !specificDate}
+                  disabled={busy || !doctorId || !startTime || !endTime}
                   style={styles.primaryButton}
                   textStyle={styles.primaryButtonText}
                 />
                 <View style={{ width: 12 }} />
                 <Button
-                  title="Hủy"
+                  title="Hủy/Xóa form"
                   onPress={clearForm}
                   style={styles.secondaryButton}
                   textStyle={styles.secondaryButtonText}
                 />
               </View>
             </View>
-          )}
+        )}
+    </View>
+  );
 
-          {/* Công cụ sinh khung giờ */}
-          <TouchableOpacity
-            onPress={() => setModalVisible(true)}
-            style={styles.generateButton}
-          >
-            <Text style={styles.generateButtonText}>⚙️ Sinh khung giờ tự động</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* CỘT 2: DANH SÁCH CA LÀM VIỆC */}
-        <View style={[styles.card, columnStyle]}>
-          <Text style={styles.sectionTitle}>Danh sách ca đã tạo</Text>
+  // Component Danh sách ca
+  const ListComponent = (
+    <View style={[styles.card, isLargeScreen ? styles.listColumn : undefined]}>
+        <Text style={styles.sectionTitle}>Danh sách ca đã tạo</Text>
           {loading ? (
-            <ActivityIndicator color={COLORS.primary} size="large" />
+            <ActivityIndicator color={COLORS.primary} size="large" style={{marginTop: 20}} />
           ) : (
             <FlatList
               data={shifts}
               keyExtractor={s => s.id}
-              scrollEnabled={false} // Cuộn theo ScrollView tổng
+              scrollEnabled={false}
               ListEmptyComponent={() => (
                 <Text style={styles.emptyListText}>
                   Chưa có ca làm việc nào được tạo.
@@ -694,12 +693,12 @@ export default function ManageShiftsScreen() {
               )}
               renderItem={({ item }) => {
                 const doc = doctors.find(d => d.id === item.doctor_id) || {};
-                const room =
-                  rooms.find(r => r.id === item.room_id) || {};
+                const room = rooms.find(r => r.id === item.room_id) || {};
 
+                // Hiển thị ngày đã chọn theo format DD/MM/YYYY
                 const shiftDateText = item.date
-                  ? item.date
-                  : DAYS[item.day_of_week];
+                  ? formatDateDisplay(item.date) // Dùng hàm mới
+                  : DAYS[item.day_of_week] + ' (Định kỳ)'; 
 
                 return (
                   <View style={styles.shiftCard}>
@@ -709,92 +708,82 @@ export default function ManageShiftsScreen() {
                         <Text style={styles.shiftDoctorName}>
                           {doc.name || item.doctor_id}
                         </Text>
-                        <Text style={styles.shiftDetailText}>
-                          📍 {room.name || 'Chưa phân phòng'}
-                        </Text>
-                        <Text style={styles.shiftDetailText}>
-                          📅 {shiftDateText} • 🕒 {item.start_time} -{' '}
-                          {item.end_time}
-                        </Text>
+                        {/* Thay thế emoji bằng Icon */}
+                        <View style={styles.detailRow}>
+                            <Icon name="map-pin" size={14} color={COLORS.textLight} style={styles.detailIcon} />
+                            <Text style={styles.shiftDetailText}>
+                                {room.name || 'Chưa phân phòng'}
+                            </Text>
+                        </View>
+                        <View style={styles.detailRow}>
+                            <Icon name="calendar" size={14} color={COLORS.textLight} style={styles.detailIcon} />
+                            <Text style={styles.shiftDetailText}>
+                                {shiftDateText}
+                            </Text>
+                            <Icon name="clock" size={14} color={COLORS.textLight} style={[styles.detailIcon, {marginLeft: 10}]} />
+                            <Text style={styles.shiftDetailText}>
+                                {item.start_time} - {item.end_time}
+                            </Text>
+                        </View>
                       </View>
                     </View>
+                    
+                    {/* Thay thế Button bằng TouchableOpacity có Icon */}
                     <View style={styles.shiftCardActions}>
-                      <Button
-                        title="Sửa"
+                      <TouchableOpacity
                         onPress={() => onEdit(item)}
                         style={styles.editButton}
-                        textStyle={styles.editButtonText}
-                      />
+                      >
+                          <Icon name="edit" size={16} color={COLORS.cardBackground} style={{ marginRight: 5 }} />
+                          <Text style={styles.editButtonText}>Sửa</Text>
+                      </TouchableOpacity>
                       <View style={{ width: 8 }} />
-                      <Button
-                        title="Xóa"
+                      <TouchableOpacity
                         onPress={() => onDelete(item.id)}
                         style={styles.deleteButton}
-                        textStyle={styles.deleteButtonText}
-                      />
+                      >
+                          <Icon name="trash-2" size={16} color={COLORS.cardBackground} style={{ marginRight: 5 }} />
+                          <Text style={styles.deleteButtonText}>Xóa</Text>
+                      </TouchableOpacity>
                     </View>
                   </View>
                 );
               }}
             />
           )}
-        </View>
+    </View>
+  );
+
+  return (
+    <ScrollView
+      style={styles.fullContainer}
+      contentContainerStyle={[
+        styles.scrollContent,
+        { paddingHorizontal: isLargeScreen ? 30 : 16 }, 
+      ]}
+    >
+      {/* App Bar mới */}
+      <View style={styles.appBar}>
+        <Text style={styles.appBarTitle}>Quản lý Ca Làm Việc</Text>
+        <Text style={styles.appBarSubtitle}>
+          Thiết lập lịch làm việc theo ngày cụ thể hoặc lịch định kỳ hàng tuần cho bác sĩ.
+        </Text>
       </View>
-
-      {/* Modal Sinh Khung Giờ */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalContent, { maxWidth: 400 }]}>
-            <Text style={styles.modalTitle}>Sinh Khung Giờ Hẹn</Text>
-            <Text style={styles.label}>Bác sĩ áp dụng: {selectedDoctor.name || 'Chưa chọn'}</Text>
-
-            <Text style={styles.label}>Từ ngày (YYYY-MM-DD)</Text>
-            <Input
-              placeholder="YYYY-MM-DD"
-              value={genFromDate}
-              onChangeText={setGenFromDate}
-              style={styles.inputStyle}
-              placeholderTextColor={COLORS.placeholder}
-            />
-
-            <Text style={styles.label}>Đến ngày (YYYY-MM-DD)</Text>
-            <Input
-              placeholder="YYYY-MM-DD"
-              value={genToDate}
-              onChangeText={setGenToDate}
-              style={styles.inputStyle}
-              placeholderTextColor={COLORS.placeholder}
-            />
-
-            <View style={{ height: 20 }} />
-
-            <View style={styles.actionsRow}>
-              <Button
-                title="Thực hiện sinh khung"
-                onPress={onGenerateSlotsForDoctor}
-                disabled={busy || !doctorId}
-                style={styles.primaryButton}
-                textStyle={styles.primaryButtonText}
-              />
-            </View>
-            <View style={styles.actionsRow}>
-              <Button
-                title="Đóng"
-                onPress={() => setModalVisible(false)}
-                style={styles.secondaryButton}
-                textStyle={styles.secondaryButtonText}
-              />
-            </View>
-          </View>
+      
+      {/* Layout Responsive: 1 cột (di động) -> 2 cột (máy tính) */}
+      {isLargeScreen ? (
+        <View style={styles.columnsContainer}>
+            {FormComponent}
+            {ListComponent}
         </View>
-      </Modal>
+      ) : (
+        <>
+            {FormComponent}
+            {ListComponent}
+        </>
+      )}
 
-      {/* Doctor Picker Modal (dùng lại code cũ) */}
+      {/* Doctor Picker Modal (Giữ nguyên) */}
       <Modal
         visible={doctorPickerVisible}
         animationType="slide"
@@ -853,62 +842,66 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingVertical: 24,
   },
-  // Responsive Columns
+  // Responsive Columns (New Styles)
   columnsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
+    gap: 20, 
   },
-  column: {
+  formColumn: {
     flex: 1,
     minWidth: 350,
-    marginHorizontal: 10,
+    maxWidth: 450, 
   },
-  // Global Components
+  listColumn: {
+    flex: 2,
+    minWidth: 400,
+  },
+  // Global Components (Updated Styles for Modern Look)
   appBar: {
     backgroundColor: COLORS.primary,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 12, // Bo tròn nhiều hơn
+    paddingVertical: 20, 
+    paddingHorizontal: 20,
+    borderRadius: 16, 
     marginBottom: 20,
     ...Platform.select({
       ios: {
         shadowColor: COLORS.shadowColor,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 6 }, 
+        shadowOpacity: 0.25,
+        shadowRadius: 10,
       },
       android: {
-        elevation: 8,
+        elevation: 10,
       },
     }),
   },
   appBarTitle: {
     color: COLORS.cardBackground,
-    fontWeight: '800', // Đậm hơn
-    fontSize: 24, // To hơn
+    fontWeight: '800',
+    fontSize: 28, 
     marginBottom: 4,
   },
   appBarSubtitle: {
     color: COLORS.primaryLight,
-    fontSize: 14,
+    fontSize: 15,
   },
   card: {
     backgroundColor: COLORS.cardBackground,
-    padding: 20,
-    borderRadius: 12,
+    padding: 24, 
+    borderRadius: 16, 
     marginBottom: 20,
     borderWidth: 1,
     borderColor: COLORS.border,
     ...Platform.select({
       ios: {
         shadowColor: COLORS.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 2,
+        elevation: 4,
       },
     }),
   },
@@ -917,10 +910,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+    borderBottomWidth: 1, 
+    borderBottomColor: COLORS.border,
+    paddingBottom: 10,
   },
   sectionTitle: {
-    fontWeight: '700',
-    fontSize: 18,
+    fontWeight: '800', 
+    fontSize: 20, 
     color: COLORS.textDark,
   },
   label: {
@@ -931,15 +927,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   formSection: {
-    marginBottom: 12,
+    marginBottom: 16, 
   },
-  // Doctor Selector
+  // Doctor Selector (Updated)
   selectedDoctor: {
-    padding: 12,
-    borderRadius: 8,
+    padding: 14, 
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.background,
+    justifyContent: 'center',
+  },
+  doctorInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  doctorInfoText: {
+    marginLeft: 12,
   },
   doctorName: {
     fontWeight: '700',
@@ -951,19 +955,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   placeholderText: {
-    color: COLORS.primary,
+    color: COLORS.placeholder, 
     fontWeight: '600',
   },
-  // Date Input
+  // Date Input (Updated - Added flexDirection)
   dateInput: {
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
     backgroundColor: COLORS.background,
+    flexDirection: 'row', // Thêm để căn icon và text
+    alignItems: 'center',
   },
-  // Time Inputs
+  // Time Inputs (Updated)
   timeInputsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -974,46 +980,44 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   inputStyle: {
-    // Để ghi đè lên style của Input component
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 8,
+    borderRadius: 10, 
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 12, 
     backgroundColor: COLORS.background,
     color: COLORS.textDark,
     fontSize: 15,
   },
-  // Rooms Chip Selector
+  // Rooms Chip Selector (Updated)
   roomToggle: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 4,
-  },
-  toggleIcon: {
-    color: COLORS.primary,
-    fontSize: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   roomsContainer: {
-    marginTop: 8,
+    marginTop: 10,
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
   chip: {
     paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     marginRight: 8,
-    borderRadius: 20, // Bo tròn dạng pill
+    borderRadius: 20, 
     marginBottom: 8,
+    borderWidth: 1,
   },
   chipDefault: {
     backgroundColor: COLORS.background,
-    borderWidth: 1,
     borderColor: COLORS.border,
   },
   chipSelected: {
     backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   chipTextDefault: {
     color: COLORS.textDark,
@@ -1023,17 +1027,17 @@ const styles = StyleSheet.create({
     color: COLORS.cardBackground,
     fontWeight: '600',
   },
-  // Actions
+  // Actions (Updated)
   actionsRow: {
     flexDirection: 'row',
-    marginTop: 20,
+    marginTop: 24, 
     justifyContent: 'space-between',
   },
   primaryButton: {
     flex: 1,
     backgroundColor: COLORS.primary,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14, 
+    borderRadius: 10,
   },
   primaryButtonText: {
     color: COLORS.cardBackground,
@@ -1043,8 +1047,8 @@ const styles = StyleSheet.create({
   secondaryButton: {
     flex: 1,
     backgroundColor: COLORS.border,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 10,
   },
   secondaryButtonText: {
     color: COLORS.textLight,
@@ -1052,45 +1056,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   toggleButton: {
-    padding: 6,
+    padding: 8,
     borderRadius: 8,
   },
-  toggleButtonText: {
-    color: COLORS.primary,
-    fontWeight: '600',
-  },
-  generateButton: {
-    backgroundColor: COLORS.secondary,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginTop: 20,
-  },
-  generateButtonText: {
-    color: COLORS.cardBackground,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-
-  // Shift List
+  // Shift List (Updated)
   shiftCard: {
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.cardBackground,
     padding: 16,
-    borderRadius: 8,
-    marginBottom: 10,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.primary, // Điểm nhấn màu sắc
+    borderRadius: 10,
+    marginBottom: 12,
+    borderLeftWidth: 5, 
+    borderLeftColor: COLORS.primary, 
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
     ...Platform.select({
       ios: {
         shadowColor: COLORS.shadowColor,
-        shadowOffset: { width: 0, height: 1 },
+        shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
-        shadowRadius: 2,
+        shadowRadius: 4,
       },
       android: {
-        elevation: 1,
+        elevation: 2,
       },
     }),
   },
@@ -1108,20 +1098,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.textDark,
   },
+  // Thêm styles cho DetailRow
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    flexWrap: 'wrap',
+  },
+  detailIcon: {
+    marginRight: 4,
+  },
   shiftDetailText: {
     color: COLORS.textLight,
     fontSize: 13,
-    marginTop: 2,
   },
   shiftCardActions: {
     flexDirection: 'row',
     marginLeft: 10,
   },
+  // Chỉnh sửa style Button thành TouchableOpacity có Icon
   editButton: {
     backgroundColor: COLORS.success,
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   editButtonText: {
     color: COLORS.cardBackground,
@@ -1133,6 +1135,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   deleteButtonText: {
     color: COLORS.cardBackground,
@@ -1143,21 +1147,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: COLORS.textLight,
     fontStyle: 'italic',
-    marginTop: 10,
+    marginTop: 20,
   },
-  // Modals (Dùng chung cho cả Doctor Picker và Generate)
+  // Modals (Giữ nguyên)
   modalBackdrop: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)', // Nền tối hơn
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
   modalContent: {
     margin: 20,
     backgroundColor: COLORS.cardBackground,
-    borderRadius: 16, // Bo tròn nhiều hơn
-    padding: 24, // Tăng padding
-    width: '90%', // Chiếm 90% chiều rộng
+    borderRadius: 16,
+    padding: 24,
+    width: '90%',
     ...Platform.select({
       ios: {
         shadowColor: COLORS.shadowColor,
@@ -1219,11 +1223,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingHorizontal: 10,
   },
-  calendarNavText: {
-    fontSize: 18,
-    color: COLORS.primary,
-    fontWeight: '700',
-  },
   calendarMonthText: {
     fontWeight: '700',
     fontSize: 16,
@@ -1253,6 +1252,17 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: COLORS.border,
   },
+  // Thêm style cho ngày hiện tại
+  calendarCellToday: {
+    backgroundColor: COLORS.primaryLight, // Màu nền xanh nhạt
+    borderColor: COLORS.primary,
+    borderWidth: 1,
+    borderRadius: 0, // Đảm bảo không bo góc nếu đã có border radius cho grid
+  },
+  calendarCellTodayText: {
+    color: COLORS.primary, // Màu chữ xanh đậm
+    fontWeight: '700',
+  },
   calendarCellSelected: {
     backgroundColor: COLORS.primary,
   },
@@ -1268,4 +1278,29 @@ const styles = StyleSheet.create({
   calendarCellOutsideMonth: {
     color: COLORS.placeholder,
   },
+  // Style cho phần chọn Thứ trong tuần (Giữ nguyên)
+  toggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    marginTop: 15,
+    paddingVertical: 5,
+  },
+  daysContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    flexWrap: 'wrap',
+    paddingVertical: 8,
+    backgroundColor: COLORS.background,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  dayChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginHorizontal: 2,
+    borderRadius: 20,
+  }
 });

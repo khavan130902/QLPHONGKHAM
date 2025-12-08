@@ -44,7 +44,6 @@ export default function AppointmentsScreen() {
       try {
         setLoading(true);
 
-        // Không dùng index: chỉ where theo patientId, lọc/sort trên client
         const snap = await db
           .collection('appointments')
           .where('patientId', '==', user.uid)
@@ -56,11 +55,12 @@ export default function AppointmentsScreen() {
         })) as Appt[];
         setItems(apps);
 
-        // fetch doctor metadata (name, photoURL, specialty_id)
+        // fetch doctor metadata
         const doctorIds = Array.from(
           new Set(apps.map(a => a.doctorId).filter(Boolean)),
         ) as string[];
         const map: Record<string, any> = {};
+
         await Promise.all(
           doctorIds.map(async id => {
             try {
@@ -75,9 +75,10 @@ export default function AppointmentsScreen() {
             }
           }),
         );
+
         setDoctorsMap(map);
 
-        // specialties (để hiện tên chuyên khoa)
+        // specialties
         try {
           const snap2 = await db.collection('specialties').get();
           setSpecialtiesList(
@@ -92,15 +93,15 @@ export default function AppointmentsScreen() {
     })();
   }, [user]);
 
-  // Chuẩn hóa filter -> status trong DB
+  // filter + sort
   const filtered = useMemo(() => {
     const norm = (s?: string) => (s || '').toLowerCase();
     return items
       .slice()
-      .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime()) // mới nhất lên đầu
+      .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
       .filter(i => {
         if (filter === 'all') return true;
-        return norm(i.status) === filter; // pending | accepted | completed | cancelled
+        return norm(i.status) === filter;
       });
   }, [items, filter]);
 
@@ -121,10 +122,10 @@ export default function AppointmentsScreen() {
       cancelled: 'Đã hủy',
     };
     const statusColorMap: Record<string, string> = {
-      pending: '#FFF3CD', // amber
-      accepted: '#DBEAFE', // blue
-      completed: '#D1E7DD', // green
-      cancelled: '#F8D7DA', // red
+      pending: '#FFF3CD',
+      accepted: '#DBEAFE',
+      completed: '#D1E7DD',
+      cancelled: '#F8D7DA',
     };
 
     const startDate = new Date(item.start);
@@ -170,6 +171,7 @@ export default function AppointmentsScreen() {
 
           <View style={{ height: 8 }} />
 
+          {/* ✔️ CHỈ SỬA CHỖ NÀY: nếu completed → KHÔNG HIỆN nút "Hủy" */}
           <View style={{ flexDirection: 'row' }}>
             <TouchableOpacity
               onPress={() =>
@@ -181,8 +183,22 @@ export default function AppointmentsScreen() {
             >
               <Text style={styles.smallBtnText}>Xem chi tiết</Text>
             </TouchableOpacity>
+
             <View style={{ width: 8 }} />
-            {status !== 'cancelled' ? (
+
+            {status === 'cancelled' ? (
+              // Đã hủy: hiện "Đặt lại"
+              <TouchableOpacity
+                onPress={() => (navigation as any).navigate('Book')}
+                style={styles.smallBtn}
+              >
+                <Text style={styles.smallBtnText}>Đặt lại</Text>
+              </TouchableOpacity>
+            ) : status === 'completed' ? (
+              // ✔️ ĐÃ HOÀN THÀNH: KHÔNG cho hủy, KHÔNG hiện nút
+              <View />
+            ) : (
+              // pending / accepted → hiện nút "Hủy"
               <TouchableOpacity
                 onPress={() =>
                   safeAlert('Hủy lịch', 'Bạn có chắc muốn hủy lịch này?')
@@ -192,13 +208,6 @@ export default function AppointmentsScreen() {
                 <Text style={[styles.smallBtnText, { color: '#990000' }]}>
                   Hủy
                 </Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                onPress={() => (navigation as any).navigate('Book')}
-                style={styles.smallBtn}
-              >
-                <Text style={styles.smallBtnText}>Đặt lại</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -219,7 +228,7 @@ export default function AppointmentsScreen() {
               { key: 'all', label: 'Tất cả' },
               { key: 'pending', label: 'Đang chờ' },
               { key: 'accepted', label: 'Đã duyệt' },
-              { key: 'completed', label: 'Đã hoàn thành' }, // ✅ mới
+              { key: 'completed', label: 'Đã hoàn thành' },
               { key: 'cancelled', label: 'Đã hủy' },
             ].map(f => (
               <TouchableOpacity
