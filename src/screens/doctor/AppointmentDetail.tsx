@@ -147,7 +147,8 @@ export default function AppointmentDetail({ route, navigation }: any) {
     const newNote: Note = {
       text: body,
       authorId: user?.uid || '',
-      authorName: user?.displayName ?? user?.email ?? null,
+      // ⚠️ ĐÃ SỬA ĐỔI: Ưu tiên displayName, nếu không có thì dùng 'Bác sĩ', tránh dùng email
+      authorName: user?.displayName ?? 'Bác sĩ', 
       createdAt: new Date().toISOString(),
     };
 
@@ -391,7 +392,11 @@ export default function AppointmentDetail({ route, navigation }: any) {
                   }}
                 >
                   <Text style={styles.noteAuthor}>
-                    {n.authorName || 'Bác sĩ'}
+                    {/* ⚠️ LOGIC ĐÃ SỬA: Ẩn email (nếu có) bằng cách thay thế nó bằng 'Bác sĩ' 
+                       hoặc hiển thị authorName nếu nó không phải là email,
+                       hoặc mặc định là 'Bác sĩ'.
+                    */}
+                    {n.authorName?.includes('@') ? 'Bác sĩ' : n.authorName || 'Bác sĩ'}
                   </Text>
                   <Text style={styles.noteTime}>{formatTs(n.createdAt)}</Text>
                 </View>

@@ -370,6 +370,21 @@ export default function BookScreen() {
         'Ca này đã có người đặt, vui lòng chọn ca khác.',
       );
     }
+    
+    // ✅ Bổ sung kiểm tra ca đã trôi qua
+    const shiftStartISO = `${date}T${shift.start_time}:00`;
+    const shiftStart = new Date(shiftStartISO);
+    const now = new Date();
+    const isToday = toYMD(shiftStart) === toYMD(now);
+    const isPast = isToday && (shiftStart.getTime() < now.getTime());
+    
+    if (isPast) {
+         return safeAlert(
+            'Lỗi thời gian',
+            'Ca này đã trôi qua so với thời gian thực. Vui lòng chọn ca khác.',
+        );
+    }
+    // ----------------------------------------------------
 
     const docName = doctorObj?.name || 'Bác sĩ';
     const svcName = chosenService?.name || 'Dịch vụ';
@@ -431,7 +446,8 @@ export default function BookScreen() {
       </TouchableOpacity>
       {specialtyOpen && (
         <View style={newStyles.dropdownBody}>
-          <ScrollView style={{ maxHeight: 220 }}>
+          {/* ✅ Đã tăng maxHeight và giữ nguyên ở đây */}
+          <ScrollView style={{ maxHeight: 250 }}> 
             <TouchableOpacity
               onPress={() => {
                 setSelectedSpecialtyId(null);
@@ -672,17 +688,40 @@ export default function BookScreen() {
             keyExtractor={s => s.id}
             contentContainerStyle={{ paddingVertical: 4 }}
             renderItem={({ item }) => {
-              const disabled = bookedForDate.some(b =>
+              // ----------------------------------------------------
+              // ✅ Logic: Kiểm tra ca đã trôi qua chưa
+              // ----------------------------------------------------
+              // 1. Lấy thời điểm bắt đầu ca (ISO string)
+              const shiftStartISO = `${date}T${item.start_time}:00`;
+              const shiftStart = new Date(shiftStartISO);
+              
+              // 2. Lấy thời điểm hiện tại
+              const now = new Date();
+              
+              // 3. Kiểm tra xem ca đã trôi qua chưa (thời điểm bắt đầu < thời điểm hiện tại)
+              // Chỉ kiểm tra isPast nếu ngày được chọn là ngày hôm nay
+              const isToday = toYMD(shiftStart) === toYMD(now);
+              const isPast = isToday && (shiftStart.getTime() < now.getTime());
+              // ----------------------------------------------------
+
+              // Kiểm tra xem ca có bị trùng lịch khác không
+              const isConflict = bookedForDate.some(b =>
                 overlap(b.start, b.end, item.start_time, item.end_time),
               );
+              
+              // Tổng hợp trạng thái vô hiệu hóa: Đã kín (Conflict) HOẶC Đã trôi qua (isPast)
+              const disabled = isConflict || isPast;
+
               const selected = selectedShiftId === item.id;
               
-              // Tạo một chuỗi thông tin phụ (Phòng/Đã kín)
-              const subInfo = disabled 
-                ? 'Đã kín' 
-                : item.room_id 
-                  ? roomsMap[item.room_id] ? `P. ${roomsMap[item.room_id]}` : 'Có phòng' 
-                  : 'N/A';
+              // Tạo một chuỗi thông tin phụ (Phòng/Đã kín/Đã trôi qua)
+              const subInfo = isPast
+                ? 'Đã qua' // Trạng thái mới: ca đã hết giờ
+                : isConflict
+                  ? 'Đã kín' 
+                  : item.room_id 
+                    ? roomsMap[item.room_id] ? `P. ${roomsMap[item.room_id]}` : 'Có phòng' 
+                    : 'N/A';
 
               return (
                 <TouchableOpacity
@@ -993,7 +1032,7 @@ const newStyles = StyleSheet.create({
     borderColor: COLORS.border,
     backgroundColor: COLORS.cardBackground,
     padding: 4,
-    maxHeight: 220,
+    // ĐÃ GỠ bỏ maxHeight: 220, để ScrollView bên trong có thể cuộn đúng
   },
   dropdownItem: { 
     paddingVertical: 10, 

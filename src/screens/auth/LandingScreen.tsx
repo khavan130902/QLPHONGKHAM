@@ -1,194 +1,255 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, Dimensions, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// --- BẢNG MÀU MỚI (LIGHT THEME) ---
+// Kích thước màn hình để tính toán chiều cao sóng
+const { height } = Dimensions.get('window');
+const WAVE_HEIGHT = height * 0.35;
+
+// Bảng màu giống LoginScreen
 const COLORS = {
-  primary: '#2596be',      // Màu xanh chủ đạo
-  background: '#f8f9fa',   // Nền tổng thể rất nhạt
-  cardBackground: '#ffffff', // Nền card trắng
-  textDark: '#1c1c1c',     // Chữ đen chính
-  textLight: '#4a4a4a',    // Chữ xám phụ
-  subtitle: '#777777',     // Chữ mô tả
-  shadowColor: '#000000',
-  // Thêm màu cho các hành động (nhất quán với màu xanh primary)
-  socialBorder: '#e0e0e0', // Viền cho nút xã hội
+  primary: '#2596be',
+  background: '#f8f9fa',
+  cardBackground: '#ffffff',
+  textDark: '#1c1c1c',
+  textLight: '#4a4a4a',
+  subtitle: '#777777',
+  shadowColor: '#000000',
+  socialBorder: '#e0e0e0',
+  waveBackground: '#2596be',
 };
 
-// --- COMPONENT CHÍNH ---
 export default function LandingScreen({ navigation }: any) {
-  
-  // Component Nút Xã hội (Dùng nền trắng và viền)
-  const SocialBtn = ({ text, iconSource, onPress }: any) => (
-    <TouchableOpacity style={styles.socialBtn} onPress={onPress} activeOpacity={0.8}>
-      <Image source={iconSource} style={styles.socialIconImage} resizeMode="contain" />
-      <Text style={styles.socialBtnText}>{text}</Text>
-    </TouchableOpacity>
-  );
 
-  // Component Nút Điện thoại (Nút chính - Màu Primary)
-  const PhoneBtn = ({ text, onPress }: any) => (
-    <TouchableOpacity
-      style={styles.phoneBtn}
-      onPress={onPress}
-      activeOpacity={0.8}
-    >
-      <Text style={styles.phoneBtnText}>{text}</Text>
-    </TouchableOpacity>
-  );
+  // Nút chính (Primary)
+  const PrimaryBtn = ({ text, onPress }: any) => (
+    <TouchableOpacity
+      style={styles.primaryBtn}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <Text style={styles.primaryBtnText}>{text}</Text>
+    </TouchableOpacity>
+  );
+  
+  // Nút phụ (Secondary) - ĐÃ THÊM
+  const SecondaryBtn = ({ text, onPress }: any) => (
+    <TouchableOpacity
+      style={styles.secondaryBtn}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <Text style={styles.secondaryBtnText}>{text}</Text>
+    </TouchableOpacity>
+  );
 
-  return (
-    <SafeAreaView style={styles.container}>
-      {/* KHU VỰC LOGO & TIÊU ĐỀ */}
-      <View style={styles.header}>
-        <Image
-          source={require('../../../assets/logo.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-        <Text style={styles.brand}>Xin chào</Text> 
-        <Text style={styles.subtitleText}>
-          Hồ sơ sức khỏe cá nhân trong tầm tay bạn.
-        </Text>
-      </View>
 
-      {/* KHU VỰC HÀNH ĐỘNG */}
-      <View style={styles.actions}>
-        
-        {/* Nút Đăng nhập/Tiếp tục bằng SĐT (Nút chính) */}
-        <PhoneBtn
-          text="Tạo Tài Khoản Mới (Đăng Ký)"
-          onPress={() => {
-            navigation.navigate('Login'); 
-          }}
-        />
-        
-        {/* Nút Đăng nhập bằng tài khoản (Nút phụ) */}
-        <TouchableOpacity
-          style={styles.accountBtn}
-          onPress={() => navigation.navigate('AccountLogin')}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.accountBtnText}>Đã có tài khoản? Đăng nhập</Text>
-        </TouchableOpacity>
+  return (
+    <SafeAreaView style={styles.container}>
 
-      </View>
-    </SafeAreaView>
-  );
+      {/* --- WAVE HEADER --- */}
+      <View style={styles.waveBackground}>
+        <View style={styles.logoContainer}>
+          <View style={styles.appTitleWrapper}>
+            <Image
+              source={require('../../../assets/logo.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
+          </View>
+        </View>
+
+        <View style={styles.waveShape} />
+      </View>
+
+      {/* --- SCROLL CONTENT --- */}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+
+        {/* CARD CHÍNH */}
+        <View style={styles.formCard}>
+
+          <Text style={styles.formTitle}>Xin chào!</Text>
+          <Text style={styles.formSubtitle}>
+            Hồ sơ sức khỏe cá nhân trong tầm tay bạn.
+          </Text>
+
+          {/* Nút hành động */}
+          <View style={styles.actions}>
+            
+            {/* Nút đăng ký (PRIMARY) */}
+            <PrimaryBtn
+              text="Tạo Tài Khoản Mới (Đăng Ký)"
+              onPress={() => navigation.navigate('Login')} // Giữ nguyên logic điều hướng
+            />
+
+            {/* Nút đăng nhập (SECONDARY) - ĐÃ CHUYỂN TỪ LINK THÀNH BUTTON */}
+            <SecondaryBtn
+              text="Đã có tài khoản? Đăng nhập"
+              onPress={() => navigation.navigate('AccountLogin')} // Giữ nguyên logic điều hướng
+            />
+
+          </View>
+        </View>
+
+        <Text style={styles.privacyNote}>
+          Khi tiếp tục, bạn đồng ý với Điều khoản dịch vụ và Chính sách bảo mật của chúng tôi.
+        </Text>
+      </ScrollView>
+
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: COLORS.background, // Nền rất nhạt
-    paddingHorizontal: 20,
-  },
-  header: { 
-    flex: 1, 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    paddingTop: 50,
-  },
-  logo: {
-    width: 200, 
-    height:200,
-    marginBottom: 5,
-  },
-  brand: { 
-    fontSize: 48, 
-    fontWeight: '900', 
-    color: COLORS.textDark, // Chữ đen đậm
-  },
-  subtitleText: { 
-    marginTop: 10, 
-    fontSize: 16,
-    textAlign: 'center', 
-    color: COLORS.subtitle, // Chữ xám subtitle
-    marginBottom: 30,
-  },
-  actions: { 
-    paddingBottom: Platform.OS === 'ios' ? 0 : 20, 
-  },
-  
-  // --- PHONE BUTTON (PRIMARY) ---
-  phoneBtn: {
-    backgroundColor: COLORS.primary, // Màu xanh chủ đạo
-    borderRadius: 14,
-    paddingVertical: 16,
-    marginBottom: 12,
-    alignItems: 'center',
-  },
-  phoneBtnText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.cardBackground, // Chữ trắng
-  },
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
 
-  // --- ACCOUNT BUTTON (SECONDARY) ---
-  accountBtn: {
-    backgroundColor: COLORS.cardBackground, // Nền trắng
-    borderWidth: 1,
-    borderColor: COLORS.socialBorder,
-    borderRadius: 14,
-    paddingVertical: 16,
-    marginBottom: 20,
-    alignItems: 'center',
-  },
-  accountBtnText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.textLight, // Chữ xám phụ
-  },
+  // --- HEADER SÓNG ---
+  waveBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: WAVE_HEIGHT,
+    backgroundColor: COLORS.waveBackground,
+  },
 
-  // --- OR DIVIDER ---
-  orContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 15,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: COLORS.socialBorder,
-  },
-  orText: { 
-    marginHorizontal: 10, 
-    color: COLORS.subtitle, // Chữ xám subtitle
-    fontSize: 14,
-    fontWeight: '500',
-  },
+  waveShape: {
+    position: 'absolute',
+    bottom: -1,
+    left: 0,
+    right: 0,
+    height: 100,
+    backgroundColor: COLORS.background,
+    borderTopLeftRadius: 80,
+    borderTopRightRadius: 80,
+    transform: [{ translateY: 50 }],
+  },
 
-  // --- SOCIAL BUTTONS ---
-  socialTitle: {
-    textAlign: 'center', 
-    marginVertical: 10, 
-    color: COLORS.subtitle,
-    fontSize: 14,
-  },
-  socialGroup: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  socialBtn: {
-    flex: 1,
-    backgroundColor: COLORS.cardBackground, // Nền trắng
-    borderRadius: 14,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.socialBorder, // Viền nhẹ
-  },
-  socialIconImage: { 
-    width: 24, 
-    height: 24, 
-    marginRight: 8 
-  },
-  socialBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.textLight, // Chữ xám phụ
-  },
+  // --- LOGO ---
+  logoContainer: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 40 : 20,
+    width: '100%',
+    alignItems: 'center',
+  },
+  appTitleWrapper: {
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  logoImage: {
+    width: 140,
+    height:140,
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 25,
+  },
+
+  // --- CONTENT ---
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: WAVE_HEIGHT - 100,
+    paddingBottom: 60,
+  },
+
+  formCard: {
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 20,
+    padding: 30,
+    ...Platform.select({
+      ios: {
+        shadowColor: COLORS.shadowColor,
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        shadowOffset: { height: 5, width: 0 },
+      },
+      android: { elevation: 8 },
+    }),
+  },
+
+  formTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: COLORS.textDark,
+    textAlign: 'center',
+    marginBottom: 5,
+  },
+
+  formSubtitle: {
+    fontSize: 16,
+    color: COLORS.subtitle,
+    textAlign: 'center',
+    marginTop: 10,
+    marginBottom: 40,
+    lineHeight: 24,
+  },
+
+  actions: {},
+
+  // --- PRIMARY BUTTON (Đăng Ký) ---
+  primaryBtn: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginBottom: 15, // Giảm khoảng cách nhẹ
+    ...Platform.select({
+      ios: {
+        shadowColor: COLORS.shadowColor,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 5,
+      },
+      android: { elevation: 4 },
+    }),
+  },
+  primaryBtnText: {
+    fontWeight: '800',
+    fontSize: 16,
+    color: COLORS.cardBackground,
+  },
+
+  // --- SECONDARY BUTTON (Đăng Nhập) ---
+  secondaryBtn: {
+    backgroundColor: COLORS.cardBackground, // Nền trắng
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderWidth: 1, // Thêm viền
+    borderColor: COLORS.socialBorder, // Viền màu xám nhạt
+    marginBottom: 10, // Tạo khoảng cách với phần note
+  },
+  secondaryBtnText: {
+    fontWeight: '700',
+    fontSize: 16,
+    color: COLORS.textLight, // Chữ màu xám phụ
+  },
+  
+  // --- LOGIN LINK (KHÔNG DÙNG NỮA) ---
+  loginLink: {
+    marginTop: 10,
+    alignItems: 'center',
+    display: 'none', // Ẩn link text cũ nếu cần
+  },
+  loginText: {
+    fontSize: 14,
+    color: COLORS.textLight,
+  },
+  loginLinkText: {
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+
+  privacyNote: {
+    fontSize: 12,
+    textAlign: 'center',
+    color: COLORS.subtitle,
+    marginTop: 25,
+    paddingHorizontal: 10,
+    lineHeight: 18,
+  },
 });

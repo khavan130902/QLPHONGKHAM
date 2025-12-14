@@ -1,6 +1,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.INTERNET" />
+      <!-- Mạng -->
+  <uses-permission android:name="android.permission.INTERNET" />
+
+  <!-- Quyền đọc ảnh / media cho Android 13+ -->
+  <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+  <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+
+  <!-- Quyền đọc/ghi legacy cho Android <= 12 (nếu bạn target cũ) -->
+  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
+  <!-- Quyền chụp ảnh -->
+  <uses-permission android:name="android.permission.CAMERA" />
 
     <application
       android:name=".MainApplication"

@@ -230,7 +230,7 @@ export default function DoctorScheduleScreen() {
           title: meta?.serviceName
             ? `Hóa đơn dịch vụ: ${meta.serviceName}`
             : 'Hóa đơn dịch vụ',
-          status: 'unpaid',
+          status: 'paid',
           total,
           createdAt: firestore.FieldValue.serverTimestamp(),
         };
