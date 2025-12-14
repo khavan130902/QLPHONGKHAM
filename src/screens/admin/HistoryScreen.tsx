@@ -1,4 +1,5 @@
 // src/screens/HistoryScreen.tsx
+
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -8,28 +9,31 @@ import {
   ActivityIndicator,
   TextInput,
   Image,
-  SafeAreaView, // Thêm SafeAreaView để xử lý notch/thanh trạng thái
+  SafeAreaView,
 } from 'react-native';
-// Đảm bảo các imports này hoạt động trong môi trường của bạn:
+
 import { useAuth } from '@/context/AuthContext';
 import db from '@/services/firestore';
 import Avatar from '@/components/Avatar';
 
-// Bảng màu được cung cấp
+// =================================================================
+// KHAI BÁO CƠ SỞ VÀ HÀM TIỆN ÍCH
+// =================================================================
+
+// Bảng màu thống nhất cho giao diện
 const COLORS = {
-  primary: '#2596be', // Màu xanh chủ đạo
-  background: '#f8f9fa', // Nền tổng thể rất nhạt
-  cardBackground: '#ffffff', // Nền card trắng
+  primary: '#2596be', 
+  background: '#f8f9fa',
+  cardBackground: '#ffffff', 
   textDark: '#1c1c1c',
   textLight: '#4a4a4a',
   subtitle: '#777777',
   shadowColor: '#000000',
-  // Thêm màu phụ để sử dụng trong card
-  tagSuccess: '#607d8b', // Xanh lá cho trạng thái hoàn thành (viền)
+  tagSuccess: '#607d8b', 
   searchIcon: '#9CA3AF',
 };
 
-// Định nghĩa Type để dễ quản lý (giữ nguyên type Appt)
+// Định nghĩa Type cho cấu trúc dữ liệu cuộc hẹn
 type Appt = {
   id: string;
   start: any;
@@ -45,10 +49,14 @@ type Appt = {
   };
 };
 
+/**
+ * Hàm chuyển đổi Timestamp/Date sang chuỗi ISO 8601. 
+ * Đảm bảo định dạng thống nhất cho việc sắp xếp và hiển thị.
+ */
 const toIso = (v: any) => {
   if (!v) return null;
   if (typeof v === 'string') return v;
-  if (v?.toDate) return v.toDate().toISOString();
+  if (v?.toDate) return v.toDate().toISOString(); 
   try {
     return new Date(v).toISOString();
   } catch {
@@ -58,12 +66,16 @@ const toIso = (v: any) => {
 
 export default function HistoryScreen() {
   const { user } = useAuth() as any;
+  
+  // State quản lý trạng thái tải, danh sách cuộc hẹn, thông tin người đối diện, và từ khóa tìm kiếm
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<Appt[]>([]);
   const [people, setPeople] = useState<Record<string, any>>({});
   const [q, setQ] = useState('');
 
-  // ... (useEffect và useMemo giữ nguyên logic) ...
+  // =================================================================
+  // LOGIC TẢI DỮ LIỆU (LỊCH SỬ VÀ THÔNG TIN NGƯỜI ĐỐI DIỆN)
+  // =================================================================
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -72,9 +84,11 @@ export default function HistoryScreen() {
       try {
         const isDoctor = (user?.role || '').toLowerCase() === 'doctor';
 
-        // Lấy dữ liệu (GIỮ NGUYÊN LOGIC FIREBASE CỦA BẠN)
+        // 1. Tải tất cả cuộc hẹn
         const snap = await db.collection('appointments').get();
 
+        // 2. Lọc: Chỉ lấy các cuộc hẹn đã HOÀN THÀNH ('completed') và có thời gian hợp lệ.
+        // 3. Sắp xếp: Mới nhất lên đầu (thời gian giảm dần).
         const rows: Appt[] = snap.docs
           .map(d => ({ id: d.id, ...(d.data() as any) }))
           .filter(r => (r.status ?? '') === 'completed' && !!toIso(r.start))
@@ -87,7 +101,7 @@ export default function HistoryScreen() {
         if (!mounted) return;
         setItems(rows);
 
-        // Prefetch người đối diện (bác sĩ hoặc bệnh nhân)
+        // 4. Tải trước (Prefetch) thông tin người đối diện (Bác sĩ/Bệnh nhân)
         const ids = Array.from(
           new Set(
             rows
@@ -96,6 +110,7 @@ export default function HistoryScreen() {
           ),
         );
         if (ids.length) {
+          // Tải thông tin user chi tiết (tên, ảnh) từ Firestore
           const docs = await Promise.all(
             ids.map(id => db.collection('users').doc(id).get()),
           );
@@ -104,7 +119,7 @@ export default function HistoryScreen() {
             const data = d.data();
             if (data) map[d.id] = data;
           });
-          if (mounted) setPeople(map);
+          if (mounted) setPeople(map); // Lưu vào state people
         }
       } catch (e) {
         console.warn('load completed history failed', e);
@@ -118,10 +133,20 @@ export default function HistoryScreen() {
     };
   }, [user]);
 
+  // =================================================================
+  // LOGIC TÌM KIẾM VÀ LỌC DỮ LIỆU
+  // =================================================================
+
+  /**
+   * useMemo: Danh sách đã lọc dựa trên từ khóa tìm kiếm (q).
+   * Lọc theo Tên người đối diện hoặc Tên Dịch vụ.
+   */
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
-    if (!term) return items;
+    if (!term) return items; // Nếu không có từ khóa, hiển thị toàn bộ
+
     return items.filter(it => {
+      // Xác định người đối diện (Bác sĩ nếu user là Bệnh nhân, hoặc ngược lại)
       const other =
         people[
           (user?.role || '').toLowerCase() === 'doctor'
@@ -130,17 +155,22 @@ export default function HistoryScreen() {
         ];
       const name = (other?.name || '').toLowerCase();
       const service = (it.meta?.serviceName || '').toLowerCase();
+      
+      // Kiểm tra xem tên hoặc dịch vụ có chứa từ khóa tìm kiếm không
       return name.includes(term) || service.includes(term);
     });
   }, [q, items, people, user]);
 
 
+  // =================================================================
+  // GIAO DIỆN (RENDER)
+  // =================================================================
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <Text style={styles.title}>Lịch sử đã khám</Text>
 
-        {/* Thanh tìm kiếm với icon và style mới */}
+        {/* Thanh tìm kiếm */}
         <View style={styles.searchContainer}>
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
@@ -152,6 +182,7 @@ export default function HistoryScreen() {
           />
         </View>
 
+        {/* Khối hiển thị: Loading / Trống / Danh sách */}
         {loading ? (
           <ActivityIndicator style={styles.loading} color={COLORS.primary} />
         ) : filtered.length === 0 ? (
@@ -166,24 +197,24 @@ export default function HistoryScreen() {
               const isDoctor = (user?.role || '').toLowerCase() === 'doctor';
               const otherId = isDoctor ? item.patientId : item.doctorId;
               const other = otherId ? people[otherId] : null;
+              
+              // Chuẩn bị các biến hiển thị (Tên, Ảnh, Thời gian, Dịch vụ, Giá)
               const otherName =
                 other?.name ||
                 (isDoctor ? 'Bệnh nhân' : 'Bác sĩ') + ` ${otherId || ''}`;
               const photo = other?.photoURL;
               const at = new Date(toIso(item.start)!);
-              // Định dạng thời gian rõ ràng hơn
               const timeStr = at.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'}) + ' ' + at.toLocaleDateString('vi-VN');
               const service = item.meta?.serviceName || 'Khám bệnh';
               const amount =
                 Number(item.meta?.servicePrice ?? item.price ?? 0) || 0;
-              
-              // Màu viền card sẽ là màu success nếu completed, hoặc màu primary nếu có trạng thái khác
-              const cardBorderColor = item.status === 'completed' ? COLORS.tagSuccess : COLORS.primary;
+              const cardBorderColor = COLORS.tagSuccess; // Màu viền trái cố định cho lịch sử hoàn thành
 
               return (
                 <View style={[styles.card, { borderLeftColor: cardBorderColor }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    {/* Avatar */}
+                    
+                    {/* Avatar và Tên */}
                     <View style={styles.avatarWrapper}>
                       {photo ? (
                         <Image source={{ uri: photo }} style={styles.avatar} />
@@ -192,14 +223,14 @@ export default function HistoryScreen() {
                       )}
                     </View>
                     
-                    {/* Thông tin */}
+                    {/* Thông tin Cuộc hẹn */}
                     <View style={styles.infoContainer}>
                       <Text style={styles.name}>{otherName}</Text>
                       <Text style={styles.serviceText}>{service}</Text>
                       <Text style={styles.timeText}>{timeStr}</Text>
                     </View>
                     
-                    {/* Giá tiền */}
+                    {/* Giá tiền đã thanh toán */}
                     <View style={styles.priceContainer}>
                       <Text style={styles.price}>
                         {amount > 0 ? `₫ ${amount.toLocaleString('vi-VN')}` : 'Miễn phí'}
@@ -216,24 +247,27 @@ export default function HistoryScreen() {
   );
 }
 
+// =================================================================
+// STYLES (ĐỊNH NGHĨA GIAO DIỆN)
+// =================================================================
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
   container: { flex: 1, paddingHorizontal: 16, backgroundColor: COLORS.background },
   title: {
-    fontSize: 22, // Tăng kích thước
+    fontSize: 22, 
     fontWeight: '800',
-    color: COLORS.textDark, // Dùng textDark
+    color: COLORS.textDark, 
     marginTop: 10,
     marginBottom: 15,
   },
-  // --- Search Bar Mới ---
+  // --- Search Bar Styles ---
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.cardBackground,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.subtitle, // Dùng subtitle cho màu border nhạt hơn
+    borderColor: COLORS.subtitle, 
     paddingHorizontal: 12,
     marginBottom: 20,
     shadowColor: COLORS.shadowColor,
@@ -253,7 +287,7 @@ const styles = StyleSheet.create({
     color: COLORS.textDark,
     fontSize: 14,
   },
-  // --- List & Card ---
+  // --- List & Card Styles ---
   loading: { marginTop: 16 },
   listContent: { paddingBottom: 24 },
   empty: { textAlign: 'center', color: COLORS.textLight, marginTop: 18 },
@@ -261,8 +295,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.cardBackground,
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12, // Tăng khoảng cách giữa các thẻ
-    borderLeftWidth: 5, // Viền trái
+    marginBottom: 12, 
+    borderLeftWidth: 5, // Viền trái tạo điểm nhấn
     shadowColor: COLORS.shadowColor,
     shadowOpacity: 0.06,
     shadowOffset: { width: 0, height: 4 },
@@ -272,7 +306,7 @@ const styles = StyleSheet.create({
   avatarWrapper: {
     marginRight: 12,
   },
-  avatar: { width: 48, height: 48, borderRadius: 24 }, // Tăng kích thước avatar
+  avatar: { width: 48, height: 48, borderRadius: 24 }, 
   infoContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -289,11 +323,11 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   serviceText: {
-    color: COLORS.textLight, // Dùng textLight
+    color: COLORS.textLight, 
     fontSize: 13,
   },
   timeText: { 
-    color: COLORS.subtitle, // Dùng subtitle
+    color: COLORS.subtitle, 
     fontSize: 11, 
     marginTop: 4 
   },
@@ -301,10 +335,10 @@ const styles = StyleSheet.create({
     color: COLORS.textDark, 
     fontWeight: '800', 
     fontSize: 16,
-    backgroundColor: COLORS.background, // Nền nhẹ cho giá tiền
+    backgroundColor: COLORS.background, // Tạo nền nổi bật cho giá tiền
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
-  // Đã loại bỏ styles cũ
+  
 });

@@ -1,5 +1,5 @@
-// screens/DoctorHome.tsx (Đã refactor và đồng bộ với PatientHome/HomeScreen)
-import React, { useEffect, useMemo, useRef, useState } from 'react'; // Thêm useRef
+// screens/DoctorHome.tsx
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -11,17 +11,17 @@ import {
   SafeAreaView,
   Dimensions,
   Platform,
-  ListRenderItem, // Thêm ListRenderItem
+  ListRenderItem,
 } from 'react-native';
 import Icon from '@react-native-vector-icons/feather';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '@/context/AuthContext';
 import db from '@/services/firestore';
-import safeAlert from '@/utils/safeAlert'; // Thêm để dùng cho chức năng chưa có
+import safeAlert from '@/utils/safeAlert';
 
 const { width } = Dimensions.get('window');
 
-/** ====== BẢNG MÀU ĐỒNG BỘ VỚI HomeScreen.tsx ====== */
+/** ====== BẢNG MÀU HomeScreen.tsx ====== */
 const COLORS = {
     primary: '#2596be',
     secondary: '#FF9500', 
@@ -42,16 +42,15 @@ const SHADOW_STYLE = {
     shadowRadius: 5,
     elevation: 2,
 };
-// ĐẢM BẢO ĐƯỜNG DẪN NÀY CHÍNH XÁC
-// GIẢ SỬ ĐƯỜNG DẪN NÀY ĐÃ ĐƯỢC THÊM VÀO THƯ MỤC ASSETS
+
 const HOSPITAL_LOGO_SOURCE = require('../../../assets/logo.png'); 
 const LOGO_HEIGHT = 40; 
 
 
-// --- CONSTANTS VÀ TYPES CHO BANNER (Được sao chép từ HomeScreen.tsx) ---
+// --- CONSTANTS VÀ TYPES CHO BANNER
 interface Banner { id: string; image: any; title: string; }
 const BANNERS: Banner[] = [
-    // Nội dung banner phù hợp hơn với Bác sĩ
+
     { id: '1', image: require('../../../assets/banner4.png'), title: 'Cập nhật phác đồ điều trị mới nhất từ Bộ Y Tế' },
     { id: '2', image: require('../../../assets/banner5.png'), title: 'Theo dõi chỉ số sức khỏe của bệnh nhân từ xa' },
     { id: '3', image: require('../../../assets/banner6.png'), title: 'Thông báo: Hội thảo y khoa chuyên đề tuần này' },
@@ -81,7 +80,7 @@ export default function DoctorHome() {
   const [name, setName] = useState('Bác sĩ');
   const [photoURL, setPhotoURL] = useState<string | null>(null);
 
-  // --- START BANNER LOGIC (Được sao chép từ HomeScreen.tsx) ---
+  // --- START BANNER LOGIC---
   const flatListRef = useRef<FlatList<Banner> | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -142,9 +141,9 @@ export default function DoctorHome() {
   // CHÀO BUỔI SÁNG/CHIỀU/TỐI (Từ HomeScreen)
   const greeting = useMemo(() => {
     const h = new Date().getHours();
-    if (h < 11) return 'Chào buổi sáng';
-    if (h < 18) return 'Chào buổi chiều';
-    return 'Chào buổi tối';
+    if (h < 11) return 'Chào buổi sáng! Bác sĩ';
+    if (h < 18) return 'Chào buổi chiều! Bác sĩ';
+    return 'Chào buổi tối! Bác sĩ';
   }, []);
 
   // HÀM CHUYỂN TRANG (Từ HomeScreen)

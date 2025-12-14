@@ -8,6 +8,10 @@ import {
   Platform,
   ScrollView,
   Dimensions,
+  // --- THÊM CÁC KIỂU STYLE ĐỂ ÉP KIỂU RÕ RÀNG ---
+  ViewStyle, 
+  ImageStyle,
+  TextStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Input from '@/components/Input';
@@ -37,7 +41,7 @@ const COLORS = {
   waveBackground: '#2596be',
 };
 
-// ----- PASSWORD CHECK -----
+// ----- PASSWORD CHECK (Giữ nguyên) -----
 const checkPasswordStrength = (password: string) => {
   if (!password) return { strength: '', color: COLORS.inputBorder };
   if (password.length < 6) return { strength: 'Rất yếu', color: COLORS.danger };
@@ -259,7 +263,7 @@ export default function AccountRegisterScreen({ navigation }: any) {
           {/* LOGIN LINK */}
           <TouchableOpacity
             onPress={() => navigation.navigate('Login')}
-            style={{ marginTop: 18 }}
+            style={{ marginTop: 18, alignItems: 'center' }}
           >
             <Text style={styles.loginText}>
               Đã có tài khoản?{' '}
@@ -268,6 +272,7 @@ export default function AccountRegisterScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
 
+        {/* PRIVACY NOTE */}
         <Text style={styles.privacyNote}>
           Khi đăng ký, bạn đồng ý với Điều khoản & Chính sách Bảo mật.
         </Text>
@@ -285,7 +290,7 @@ const styles = StyleSheet.create({
     top: 0, left: 0, right: 0,
     height: WAVE_HEIGHT,
     backgroundColor: COLORS.primary,
-  },
+  } as ViewStyle, // Ép kiểu rõ ràng
   waveShape: {
     position: 'absolute',
     bottom: -20,
@@ -296,18 +301,18 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 80,
     borderTopRightRadius: 80,
     transform: [{ translateY: 30 }],
-  },
+  } as ViewStyle, // Ép kiểu rõ ràng
 
   logoContainer: {
     marginTop: Platform.OS === 'ios' ? 45 : 25,
     alignItems: 'center',
-  },
+  } as ViewStyle,
   logo: {
     width: 110,
     height: 110,
     backgroundColor: COLORS.cardBackground,
     borderRadius: 20,
-  },
+  } as ImageStyle, // Ép kiểu rõ ràng
 
   backBtnAbsolute: {
     position: 'absolute',
@@ -315,20 +320,20 @@ const styles = StyleSheet.create({
     left: 12,
     zIndex: 10,
     padding: 10,
-  },
+  } as ViewStyle,
   backIcon: {
     width: 20,
     height: 20,
     tintColor: COLORS.cardBackground,
-  },
+  } as ImageStyle, // Ép kiểu rõ ràng
 
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: WAVE_HEIGHT - 90,
     paddingBottom: 60,
-  },
+  } as ViewStyle,
 
-  // CARD giống LoginScreen
+  // CARD giống LoginScreen (Đã sửa lỗi gạch đỏ ở đây)
   formCard: {
     backgroundColor: COLORS.cardBackground,
     borderRadius: 20,
@@ -342,7 +347,7 @@ const styles = StyleSheet.create({
       },
       android: { elevation: 6 },
     }),
-  },
+  } as ViewStyle, // Ép kiểu ViewStyle cho đối tượng này
 
   formTitle: {
     fontSize: 24,
@@ -350,45 +355,46 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: COLORS.textDark,
     marginBottom: 6,
-  },
+  } as TextStyle,
   formSubtitle: {
     textAlign: 'center',
     color: COLORS.subtitle,
     marginBottom: 25,
-  },
+  } as TextStyle,
 
   inputLabel: {
     fontWeight: '600',
     fontSize: 14,
     color: COLORS.textLight,
     marginBottom: 8,
-  },
+    marginTop: 15,
+  } as TextStyle,
   inputStyle: {
     height: 55,
-    backgroundColor: COLORS.cardBackground,
+    backgroundColor: COLORS.background, 
     borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.inputBorder,
     paddingHorizontal: 15,
-  },
+  } as ViewStyle,
 
   passwordContainer: {
     position: 'relative',
     justifyContent: 'center',
-  },
+  } as ViewStyle,
   passwordInput: {
     paddingRight: 50,
-  },
+  } as ViewStyle,
   generateButton: {
     position: 'absolute',
     right: 10,
     padding: 10,
-  },
+  } as ViewStyle,
   generateButtonText: {
     fontSize: 22,
     color: COLORS.primary,
     fontWeight: '700',
-  },
+  } as TextStyle,
 
   strengthIndicatorContainer: {
     height: 6,
@@ -396,37 +402,42 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     marginVertical: 10,
     overflow: 'hidden',
-  },
+  } as ViewStyle,
   strengthBar: {
     position: 'absolute',
     left: 0,
     height: '100%',
-  },
+  } as ViewStyle,
 
   inputError: {
     borderColor: COLORS.danger,
     borderWidth: 2,
-  },
+  } as ViewStyle,
 
   registerButton: {
     backgroundColor: COLORS.primary,
     borderRadius: 14,
     paddingVertical: 16,
     marginTop: 30,
-  },
-  registerButtonText: { fontWeight: '800', fontSize: 16 },
+  } as ViewStyle,
+  registerButtonText: { 
+    fontWeight: '800', 
+    fontSize: 16,
+    color: COLORS.cardBackground, 
+  } as TextStyle,
 
   loginText: {
     textAlign: 'center',
     color: COLORS.textLight,
     fontSize: 14,
-  },
-  loginLinkText: { color: COLORS.primary, fontWeight: '700' },
+  } as TextStyle,
+  loginLinkText: { color: COLORS.primary, fontWeight: '700' } as TextStyle,
 
   privacyNote: {
     textAlign: 'center',
     fontSize: 12,
     color: COLORS.subtitle,
     marginTop: 20,
-  },
+    paddingHorizontal: 10, 
+  } as TextStyle,
 });

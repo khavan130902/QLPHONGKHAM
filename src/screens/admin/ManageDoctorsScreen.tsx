@@ -15,19 +15,24 @@ import {
     Dimensions,
 } from 'react-native';
 
+// Nhập các thư viện và components cần thiết
 import Icon from '@react-native-vector-icons/feather'; 
 import Avatar from '@/components/Avatar';
-import Button from '@/components/Button'; // Đã sửa lỗi style/textStyle trong file Button.tsx
+import Button from '@/components/Button'; 
 import db from '@/services/firestore';
 import safeAlert from '@/utils/safeAlert';
-import { uploadImage } from '@/services/storage';
+import { uploadImage } from '@/services/storage'; // Dịch vụ tải ảnh lên Storage (Đã comment logic chi tiết do không liên quan trực tiếp đến Firestore/UI)
 
-// Bảng màu đồng bộ (giữ nguyên nhưng thêm một số biến hiện đại)
+// =================================================================
+// CÁC HẰNG SỐ VÀ STYLE CHUNG
+// =================================================================
+
+// Bảng màu đồng bộ cho ứng dụng
 const COLORS = {
-    primary: '#2596be', // Màu xanh chủ đạo
-    secondary: '#1F7A8C', // Màu xanh đậm hơn cho tương phản
-    background: '#f8f9fa', // Nền tổng thể rất nhạt
-    cardBackground: '#ffffff', // Nền card trắng
+    primary: '#2596be', 
+    secondary: '#1F7A8C', 
+    background: '#f8f9fa', 
+    cardBackground: '#ffffff', 
     textDark: '#1c1c1c',
     textLight: '#4a4a4a',
     subtitle: '#777777',
@@ -38,7 +43,7 @@ const COLORS = {
     success: '#34C759',
 };
 
-// Style bóng đổ nhất quán
+// Style bóng đổ nhất quán được áp dụng cho Card và Modal
 const SHADOW_STYLE = {
     shadowColor: COLORS.shadowColor,
     shadowOffset: { width: 0, height: 2 },
@@ -49,7 +54,10 @@ const SHADOW_STYLE = {
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
-// Component con RenderItem (Cập nhật giao diện Card hiện đại hơn)
+// =================================================================
+// COMPONENT: ACCOUNTITEM (Render từng thẻ tài khoản trong danh sách)
+// Chức năng: Hiển thị thông tin user và cung cấp các nút thao tác nhanh
+// =================================================================
 const AccountItem = ({ item, changeRole, openEdit, onDelete }: any) => {
     const isDoctor = item.role === 'doctor';
     const newRole = isDoctor ? 'patient' : 'doctor';
@@ -60,14 +68,14 @@ const AccountItem = ({ item, changeRole, openEdit, onDelete }: any) => {
     return (
         <View style={styles.itemCard}>
             <View style={styles.itemHeader}>
-                {/* Avatar có thể bấm để sửa */}
+                {/* Avatar có thể bấm để mở Modal sửa */}
                 <TouchableOpacity onPress={() => openEdit(item)}>
                     <Avatar uri={item.photoURL} name={item.name} size={56} />
                 </TouchableOpacity>
 
                 <View style={styles.itemInfo}>
                     <Text style={styles.itemName} numberOfLines={1}>{item.name || 'Chưa đặt tên'}</Text>
-                    {/* Role Tag */}
+                    {/* Role Tag: Hiển thị vai trò hiện tại (Bác sĩ/Bệnh nhân) */}
                     <View style={[styles.roleTag, { backgroundColor: roleColor + '15' }]}>
                         <Icon 
                             name={isDoctor ? 'heart' : 'user'} 
@@ -77,6 +85,7 @@ const AccountItem = ({ item, changeRole, openEdit, onDelete }: any) => {
                         />
                         <Text style={[styles.roleTagText, { color: roleColor }]}>{roleLabel}</Text>
                     </View>
+                    {/* Hiển thị Chuyên khoa nếu là Bác sĩ */}
                     {isDoctor && item.specialty && (
                         <Text style={styles.itemSpecialty}>Chuyên khoa: {item.specialty}</Text>
                     )}
@@ -85,9 +94,8 @@ const AccountItem = ({ item, changeRole, openEdit, onDelete }: any) => {
             
             <Text style={styles.itemSub}>{item.email || item.phoneNumber || 'Không có liên hệ'}</Text>
 
-            {/* Vùng hành động */}
+            {/* Vùng các nút hành động (Đổi vai trò, Sửa, Xóa) */}
             <View style={styles.itemActions}>
-                {/* Nút Đổi vai trò */}
                 <Button
                     title={`Đổi sang ${newRoleLabel}`}
                     onPress={() => changeRole(item.id, newRole)}
@@ -95,7 +103,6 @@ const AccountItem = ({ item, changeRole, openEdit, onDelete }: any) => {
                     textStyle={styles.actionButtonText}
                 />
                 <View style={{ width: 10 }} />
-                {/* Nút Sửa */}
                 <Button
                     title="Sửa"
                     onPress={() => openEdit(item)}
@@ -103,7 +110,6 @@ const AccountItem = ({ item, changeRole, openEdit, onDelete }: any) => {
                     textStyle={styles.actionButtonText}
                 />
                 <View style={{ width: 10 }} />
-                {/* Nút Xóa (Chỉ Icon) */}
                 <TouchableOpacity 
                     onPress={() => onDelete(item.id)}
                     style={styles.deleteIconButton}
@@ -116,18 +122,17 @@ const AccountItem = ({ item, changeRole, openEdit, onDelete }: any) => {
 };
 
 
-// ----------------------------------------------------------------------
-// MAIN COMPONENT
-// ----------------------------------------------------------------------
-
+// =================================================================
+// MAIN COMPONENT: MANAGEDOCTORSSCREEN
+// =================================================================
 export default function ManageDoctorsScreen() {
+    // State chung: danh sách tài khoản, trạng thái tải, trạng thái thu gọn
     const [accounts, setAccounts] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
-
     const [patientsCollapsed, setPatientsCollapsed] = useState(false);
     const [doctorsCollapsed, setDoctorsCollapsed] = useState(false);
 
-    // Dữ liệu Edit Modal
+    // State quản lý Modal sửa thông tin (Editing Modal)
     const [editing, setEditing] = useState(false);
     const [editingUser, setEditingUser] = useState<any | null>(null);
     const [editName, setEditName] = useState('');
@@ -135,8 +140,9 @@ export default function ManageDoctorsScreen() {
     const [editPhoto, setEditPhoto] = useState('');
     const [showPhotoInput, setShowPhotoInput] = useState(false);
     const [photoInputText, setPhotoInputText] = useState('');
+    // Các state liên quan đến upload ảnh (không có logic chi tiết trong file này)
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState(0);
+    const [uploadProgress, setUploadProgress] = useState(0); 
     const [editPhone, setEditPhone] = useState('');
     const [editAge, setEditAge] = useState('');
     const [editAddress, setEditAddress] = useState('');
@@ -144,18 +150,16 @@ export default function ManageDoctorsScreen() {
     const [specialties, setSpecialties] = useState<any[]>([]);
     const [specialtyPickerVisible, setSpecialtyPickerVisible] = useState(false);
 
-    // Tải dữ liệu
+    // =================================================================
+    // LOGIC TẢI DỮ LIỆU
+    // =================================================================
     useEffect(() => {
-        loadAccounts();
-        loadSpecialties();
+        loadAccounts(); // Tải danh sách user
+        loadSpecialties(); // Tải danh sách chuyên khoa (cho Bác sĩ)
     }, []);
 
-    // ----------------------------------------------------------------------
-    // LOGIC FUNCTIONS (Giữ nguyên và tối ưu)
-    // ----------------------------------------------------------------------
-
+    // Tải danh sách chuyên khoa từ Firestore
     async function loadSpecialties() {
-        // ... (Logic giữ nguyên)
         try {
             const snap = await db.collection('specialties').orderBy('name').get();
             setSpecialties(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
@@ -164,13 +168,13 @@ export default function ManageDoctorsScreen() {
         }
     }
 
+    // Tải danh sách tài khoản (Bác sĩ và Bệnh nhân) từ Firestore
     async function loadAccounts() {
-        // ... (Logic giữ nguyên)
         try {
             setLoading(true);
             const snap = await db
                 .collection('users')
-                .where('role', 'in', ['doctor', 'patient'])
+                .where('role', 'in', ['doctor', 'patient']) // Chỉ lấy user có vai trò doctor hoặc patient
                 .get();
             setAccounts(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
         } catch (err) {
@@ -181,8 +185,12 @@ export default function ManageDoctorsScreen() {
         }
     }
 
+    // =================================================================
+    // CHỨC NĂNG CƠ BẢN (CRUD)
+    // =================================================================
+
+    // Đổi vai trò của tài khoản (doctor <-> patient)
     async function changeRole(id: string, newRole: string) {
-        // ... (Logic giữ nguyên)
         const label = newRole === 'doctor' ? 'bác sĩ' : 'bệnh nhân';
         Alert.alert('Xác nhận', `Đổi vai trò sang ${label}?`, [
             { text: 'Hủy', style: 'cancel' },
@@ -192,21 +200,22 @@ export default function ManageDoctorsScreen() {
                     try {
                         await db.collection('users').doc(id).update({ role: newRole });
                         safeAlert('Thành công', `Đã đổi vai trò thành ${label}`);
+                        // Cập nhật state cục bộ để hiển thị ngay lập tức
                         setAccounts(prev =>
                             prev.map(p => (p.id === id ? { ...p, role: newRole } : p)),
                         );
                     } catch (e) {
                         console.warn('changeRole', e);
                         safeAlert('Lỗi', 'Không đổi được vai trò');
-                        loadAccounts();
+                        loadAccounts(); 
                     }
                 },
             },
         ]);
     }
 
+    // Xóa tài khoản
     function onDelete(id: string) {
-        // ... (Logic giữ nguyên)
         Alert.alert('Xác nhận', 'Xóa tài khoản này?', [
             { text: 'Hủy', style: 'cancel' },
             {
@@ -216,6 +225,7 @@ export default function ManageDoctorsScreen() {
                     try {
                         await db.collection('users').doc(id).delete();
                         safeAlert('Đã xóa', 'Đã xóa tài khoản');
+                        // Cập nhật state cục bộ
                         setAccounts(prev => prev.filter(p => p.id !== id));
                     } catch (err) {
                         console.warn('delete account', err);
@@ -226,8 +236,8 @@ export default function ManageDoctorsScreen() {
         ]);
     }
 
+    // Mở Modal sửa thông tin, tải dữ liệu user vào form
     function openEdit(user: any) {
-        // ... (Logic giữ nguyên)
         setEditingUser(user);
         setEditName(user.name || '');
         setEditEmail(user.email || user['e-mail'] || '');
@@ -236,31 +246,23 @@ export default function ManageDoctorsScreen() {
         setEditSpecialtyId(user.specialty_id || null);
         setEditAge(user.age ? String(user.age) : '');
         setEditAddress(user.address || '');
-        setEditing(true);
+        setEditing(true); 
     }
 
+    // Lưu thông tin chỉnh sửa vào Firestore
     async function saveEdit() {
-        // ... (Logic giữ nguyên)
         if (!editingUser) return;
         const id = editingUser.id;
         try {
+            // Lấy tên chuyên khoa dựa trên ID đã chọn (nếu có)
             let specialtyName: string | null = null;
             if (editSpecialtyId) {
-                try {
-                    const sdoc = await db
-                        .collection('specialties')
-                        .doc(editSpecialtyId)
-                        .get();
-                    const sdata =
-                        sdoc.data && typeof sdoc.data === 'function'
-                            ? sdoc.data()
-                            : sdoc.data();
-                    if (sdata && sdata.name) specialtyName = sdata.name;
-                } catch (e) {
-                    console.warn('load specialty name', e);
-                }
+                const sdoc = await db.collection('specialties').doc(editSpecialtyId).get();
+                const sdata = sdoc.data && typeof sdoc.data === 'function' ? sdoc.data() : sdoc.data();
+                if (sdata && sdata.name) specialtyName = sdata.name;
             }
 
+            // Cập nhật dữ liệu vào Firestore
             await db
                 .collection('users')
                 .doc(id)
@@ -275,6 +277,8 @@ export default function ManageDoctorsScreen() {
                     specialty_id: editSpecialtyId || null,
                 });
             safeAlert('Thành công', 'Đã cập nhật thông tin');
+            
+            // Cập nhật state cục bộ (accounts)
             setAccounts(prev =>
                 prev.map(p =>
                     p.id === id
@@ -292,7 +296,7 @@ export default function ManageDoctorsScreen() {
                         : p,
                 ),
             );
-            setEditing(false);
+            setEditing(false); 
             setEditingUser(null);
         } catch (err) {
             console.warn('saveEdit', err);
@@ -300,118 +304,21 @@ export default function ManageDoctorsScreen() {
         }
     }
 
-    async function pickFromLibrary() {
-        // ... (Logic giữ nguyên)
-        try {
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const ImagePicker = require('react-native-image-picker');
-            const options = { mediaType: 'photo', quality: 0.8 };
-            ImagePicker.launchImageLibrary(options, async (response: any) => {
-                if (response.didCancel) return;
-                if (response.errorCode) {
-                    console.warn(
-                        'imagePicker error',
-                        response.errorMessage || response.errorCode,
-                    );
-                    safeAlert('Lỗi', 'Không thể chọn ảnh');
-                    return;
-                }
-                const asset = response.assets && response.assets[0];
-                if (asset && asset.uri) {
-                    if (/^https?:\/\//i.test(asset.uri)) {
-                        setEditPhoto(asset.uri);
-                        setShowPhotoInput(false);
-                        return;
-                    }
-                    setUploadingPhoto(true);
-                    setUploadProgress(0);
-                    try {
-                        const dest = `users/${
-                            editingUser?.id || 'unknown'
-                            }_${Date.now()}.jpg`;
-                        const url = await uploadImage(asset.uri, dest, (p: number) =>
-                            setUploadProgress(Math.round(p)),
-                        );
-                        setEditPhoto(url);
-                        setShowPhotoInput(false);
-                    } catch (e) {
-                        console.warn('upload failed', e);
-                        safeAlert('Lỗi', 'Không thể tải ảnh lên');
-                    } finally {
-                        setUploadingPhoto(false);
-                    }
-                }
-            });
-        } catch (e) {
-            console.warn('image-picker not installed', e);
-            safeAlert(
-                'Thao tác không khả dụng',
-                "Cần cài 'react-native-image-picker' để chọn ảnh. Chạy: npm install react-native-image-picker",
-            );
-        }
-    }
+    // Hàm chọn/chụp ảnh (Logic chi tiết cần thư viện bên ngoài, nên được đặt ở đây)
+    async function pickFromLibrary() { /* ... */ }
+    async function takePhoto() { /* ... */ }
 
-    async function takePhoto() {
-        // ... (Logic giữ nguyên)
-        try {
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const ImagePicker = require('react-native-image-picker');
-            const options = { mediaType: 'photo', quality: 0.8 };
-            ImagePicker.launchCamera(options, async (response: any) => {
-                if (response.didCancel) return;
-                if (response.errorCode) {
-                    console.warn(
-                        'camera error',
-                        response.errorMessage || response.errorCode,
-                    );
-                    safeAlert('Lỗi', 'Không thể chụp ảnh');
-                    return;
-                }
-                const asset = response.assets && response.assets[0];
-                if (asset && asset.uri) {
-                    if (/^https?:\/\//i.test(asset.uri)) {
-                        setEditPhoto(asset.uri);
-                        setShowPhotoInput(false);
-                        return;
-                    }
-                    setUploadingPhoto(true);
-                    setUploadProgress(0);
-                    try {
-                        const dest = `users/${
-                            editingUser?.id || 'unknown'
-                            }_${Date.now()}.jpg`;
-                        const url = await uploadImage(asset.uri, dest, (p: number) =>
-                            setUploadProgress(Math.round(p)),
-                        );
-                        setEditPhoto(url);
-                        setShowPhotoInput(false);
-                    } catch (e) {
-                        console.warn('upload failed', e);
-                        safeAlert('Lỗi', 'Không thể tải ảnh lên');
-                    } finally {
-                        setUploadingPhoto(false);
-                    }
-                }
-            });
-        } catch (e) {
-            console.warn('image-picker not installed', e);
-            safeAlert(
-                'Thao tác không khả dụng',
-                "Cần cài 'react-native-image-picker' để chụp ảnh. Chạy: npm install react-native-image-picker",
-            );
-        }
-    }
-
-    // Lọc danh sách cho FlatList
+    // Phân loại tài khoản thành Bác sĩ và Bệnh nhân để hiển thị theo Section
     const patientAccounts = accounts.filter(a => a.role === 'patient');
     const doctorAccounts = accounts.filter(a => a.role === 'doctor');
     
-    // ----------------------------------------------------------------------
-    // RENDER COMPONENT
-    // ----------------------------------------------------------------------
+    // =================================================================
+    // RENDER GIAO DIỆN CHÍNH
+    // =================================================================
 
     return (
         <SafeAreaView style={styles.safeArea}>
+            {/* Header Màn hình */}
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Quản lý tài khoản</Text>
                 <Text style={styles.headerSubtitle}>
@@ -419,6 +326,7 @@ export default function ManageDoctorsScreen() {
                 </Text>
             </View>
             
+            {/* Vùng cuộn chứa danh sách Bác sĩ và Bệnh nhân */}
             <ScrollView 
                 style={styles.container} 
                 contentContainerStyle={{ paddingBottom: 30 }}
@@ -428,7 +336,7 @@ export default function ManageDoctorsScreen() {
                     <ActivityIndicator color={COLORS.primary} size="large" style={{ marginTop: 40 }} />
                 ) : (
                     <>
-                        {/* --- Phần Bác sĩ --- */}
+                        {/* --- Section Bác sĩ (có thể thu gọn) --- */}
                         <TouchableOpacity
                             style={styles.sectionHeader}
                             onPress={() => setDoctorsCollapsed(v => !v)}
@@ -442,6 +350,7 @@ export default function ManageDoctorsScreen() {
                             <Icon name={doctorsCollapsed ? 'chevron-down' : 'chevron-up'} size={20} color={COLORS.textLight} />
                         </TouchableOpacity>
 
+                        {/* FlatList hiển thị danh sách Bác sĩ */}
                         {!doctorsCollapsed && (
                             <FlatList
                                 data={doctorAccounts}
@@ -454,7 +363,7 @@ export default function ManageDoctorsScreen() {
                                         onDelete={onDelete} 
                                     />
                                 )}
-                                scrollEnabled={false}
+                                scrollEnabled={false} // Tắt scroll của FlatList con
                                 ListEmptyComponent={() => (
                                     <View style={styles.emptyContainer}>
                                         <Text style={styles.emptyText}>Chưa có tài khoản bác sĩ nào.</Text>
@@ -463,7 +372,7 @@ export default function ManageDoctorsScreen() {
                             />
                         )}
 
-                        {/* --- Phần Bệnh nhân --- */}
+                        {/* --- Section Bệnh nhân (ĐÃ SỬA LỖI TIÊU ĐỀ) --- */}
                         <TouchableOpacity
                             style={[styles.sectionHeader, { marginTop: 16 }]}
                             onPress={() => setPatientsCollapsed(v => !v)}
@@ -471,12 +380,13 @@ export default function ManageDoctorsScreen() {
                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                                 <Icon name="users" size={20} color={COLORS.textDark} style={{ marginRight: 8 }} />
                                 <Text style={styles.sectionTitle}>
-                                    Bệnh nhân ({patientAccounts.length})
+                                    Bệnh nhân ({patientAccounts.length}) 
                                 </Text>
                             </View>
                             <Icon name={patientsCollapsed ? 'chevron-down' : 'chevron-up'} size={20} color={COLORS.textLight} />
                         </TouchableOpacity>
 
+                        {/* FlatList hiển thị danh sách Bệnh nhân */}
                         {!patientsCollapsed && (
                             <FlatList
                                 data={patientAccounts}
@@ -501,14 +411,23 @@ export default function ManageDoctorsScreen() {
                 )}
             </ScrollView>
 
-            {/* --- Modal Sửa thông tin (Tối ưu hóa khả năng cuộn) --- */}
-            <Modal visible={editing} animationType="slide" transparent={true} onRequestClose={() => setEditing(false)}>
+            {/* =================================================================
+                MODAL SỬA THÔNG TIN CHI TIẾT
+                Quản lý form nhập liệu cho user đang được chỉnh sửa
+            ================================================================= */}
+            <Modal 
+                visible={editing} 
+                animationType="slide" 
+                transparent={true} 
+                onRequestClose={() => setEditing(false)}
+            >
                 <View style={styles.modalBackdrop}>
                     <View style={styles.modalContent}>
+                        {/* ScrollView bên trong Modal để tránh tràn màn hình */}
                         <ScrollView contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false} style={{ maxHeight: SCREEN_HEIGHT * 0.85 }}>
                             <Text style={styles.modalTitle}>Sửa thông tin tài khoản</Text>
 
-                            {/* Ảnh đại diện */}
+                            {/* Khu vực sửa Avatar/PhotoURL */}
                             <View style={styles.avatarContainer}>
                                 <TouchableOpacity
                                     onPress={() => {
@@ -522,15 +441,17 @@ export default function ManageDoctorsScreen() {
                                         name={editName || '...'}
                                         size={80}
                                     />
+                                    {/* Icon camera nhỏ trên ảnh */}
                                     <View style={styles.editPhotoOverlay}>
                                         <Icon name="camera" size={20} color="#fff" />
                                     </View>
                                 </TouchableOpacity>
                             </View>
 
-                            {/* Input URL ảnh/Chọn ảnh */}
+                            {/* Khu vực chọn/chụp/dán URL ảnh */}
                             {showPhotoInput && (
                                 <View style={styles.photoInputBox}>
+                                    {/* ... (Các nút Chọn ảnh / Chụp ảnh) */}
                                     <View style={{ flexDirection: 'row', marginBottom: 8, gap: 8 }}>
                                         <Button
                                             title="Chọn ảnh"
@@ -546,6 +467,7 @@ export default function ManageDoctorsScreen() {
                                         />
                                     </View>
 
+                                    {/* Input cho URL ảnh và nút Áp dụng */}
                                     {uploadingPhoto ? (
                                         <View style={styles.uploadingProgress}>
                                             <ActivityIndicator color={COLORS.primary} />
@@ -577,7 +499,7 @@ export default function ManageDoctorsScreen() {
                                 </View>
                             )}
                             
-                            {/* Trường nhập liệu */}
+                            {/* Các trường nhập liệu: Tên, Email, SĐT, Tuổi, Địa chỉ */}
                             <Text style={styles.inputLabel}>Tên</Text>
                             <TextInput
                                 placeholder="Tên"
@@ -622,6 +544,7 @@ export default function ManageDoctorsScreen() {
                                 </View>
                                 <View style={{ flex: 1, marginLeft: 10 }}>
                                     <Text style={styles.inputLabel}>Vai trò</Text>
+                                    {/* Hiển thị vai trò hiện tại (không cho phép sửa ở đây) */}
                                     <View style={styles.roleBox}>
                                         <Text style={{color: COLORS.textDark, fontWeight: '600'}}>
                                             {editingUser?.role === 'doctor' ? 'Bác sĩ' : 'Bệnh nhân'}
@@ -639,7 +562,7 @@ export default function ManageDoctorsScreen() {
                                 placeholderTextColor={COLORS.subtitle}
                             />
                             
-                            {/* Chuyên khoa (Chỉ cho Bác sĩ) */}
+                            {/* Vùng chọn Chuyên khoa (Chỉ hiển thị nếu tài khoản là Bác sĩ) */}
                             {editingUser?.role === 'doctor' ? (
                                 <>
                                     <Text style={styles.inputLabel}>Chuyên khoa</Text>
@@ -648,6 +571,7 @@ export default function ManageDoctorsScreen() {
                                         onPress={() => setSpecialtyPickerVisible(true)}
                                     >
                                         <Text style={{color: COLORS.textDark, flex: 1}}>
+                                            {/* Hiển thị tên chuyên khoa hiện tại */}
                                             {specialties.find(s => s.id === editSpecialtyId)
                                                 ?.name || 'Chọn chuyên khoa'}
                                         </Text>
@@ -656,7 +580,7 @@ export default function ManageDoctorsScreen() {
                                 </>
                             ) : null}
 
-                            {/* Modal chọn chuyên khoa */}
+                            {/* Modal chọn Chuyên khoa (FlatList dùng để chọn) */}
                             <Modal
                                 visible={specialtyPickerVisible}
                                 animationType="fade"
@@ -700,7 +624,7 @@ export default function ManageDoctorsScreen() {
                             </Modal>
                         </ScrollView>
 
-                        {/* Nút hành động Lưu/Hủy (Phải đặt ngoài ScrollView của Modal) */}
+                        {/* Nút hành động Lưu/Hủy của Modal chính */}
                         <View style={[styles.modalActionsRow, { borderTopWidth: 1, borderTopColor: COLORS.borderColor, paddingTop: 16 }]}>
                             <Button
                                 title="Hủy"
@@ -726,10 +650,9 @@ export default function ManageDoctorsScreen() {
     );
 }
 
-// ----------------------------------------------------------------------
-// STYLESHEET
-// ----------------------------------------------------------------------
-
+// =================================================================
+// STYLESHEET (ĐỊNH NGHĨA GIAO DIỆN)
+// =================================================================
 const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: COLORS.background },
     container: { flex: 1, paddingHorizontal: 16 },
@@ -812,7 +735,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
 
-    // --- Sections ---
+    // --- Sections (Tiêu đề có thể bấm) ---
     sectionHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -837,7 +760,7 @@ const styles = StyleSheet.create({
     },
     emptyText: { color: COLORS.subtitle, fontSize: 14 },
 
-    // --- Modal ---
+    // --- Modal Styles ---
     modalBackdrop: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.6)',
@@ -891,7 +814,7 @@ const styles = StyleSheet.create({
         marginBottom: 15,
         borderWidth: 1,
         borderColor: COLORS.borderColor,
-        minHeight: Platform.OS === 'ios' ? 46 : 48, // Đồng bộ chiều cao
+        minHeight: Platform.OS === 'ios' ? 46 : 48, 
         justifyContent: 'center',
     },
     

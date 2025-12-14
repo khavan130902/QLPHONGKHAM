@@ -36,9 +36,9 @@ const DAYS = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ
 const COLORS = {
   primary: '#2596be',       // Xanh đậm chủ đạo
   primaryLight: '#E3F2FD',  // Xanh nhạt cho nền active/selected
-  secondary: '#FF9800',     // Cam (Dùng cho các điểm nhấn phụ)
+  secondary: '#FF9800',     // Cam (Dùng cho các điểm nhấn phụ - Dùng cho ca Định kỳ)
   success: '#4CAF50',       // Xanh lá cho Sửa
-  danger: '#F44336',        // Đỏ cho Xóa
+  danger: '#F44336',        // Đỏ cho Xóa (Đã sửa để đảm bảo màu hiển thị)
   background: '#F8F9FA',    // Nền tổng thể: xám rất nhạt
   cardBackground: '#FFFFFF',// Nền card/modal: trắng tinh
   textDark: '#212529',      // Chữ đậm: gần đen
@@ -81,9 +81,20 @@ function weekdayFromYMD(ymd: string) {
   const parts = ymd.split('-').map(p => parseInt(p, 10));
   if (parts.length !== 3 || parts.some(isNaN)) return 0;
   const [y, m, d] = parts;
-  const utc = new Date(Date.UTC(y, m - 1, d, 12, 0, 0)); 
-  return utc.getUTCDay();
+  // Lấy day of week theo giờ địa phương (0=CN, 1=T2,...)
+  const localDate = dateAtNoonLocal(y, m - 1, d); 
+  return localDate.getDay();
 }
+
+/** ====== Logic Hỗ trợ Xử lý Ca Làm Việc (Giữ nguyên) ====== */
+function timesOverlap(startA: string, endA: string, startB: string, endB: string): boolean {
+    // Hai khoảng thời gian [startA, endA] và [startB, endB] bị trùng nếu: 
+    // Giờ bắt đầu của A nhỏ hơn Giờ kết thúc của B
+    // VÀ Giờ bắt đầu của B nhỏ hơn Giờ kết thúc của A
+    // (Áp dụng cho định dạng HH:mm, so sánh chuỗi hoạt động tốt)
+    return startA < endB && startB < endA;
+}
+
 
 export default function ManageShiftsScreen() {
   const { width } = useWindowDimensions();
@@ -231,6 +242,7 @@ export default function ManageShiftsScreen() {
     setFormVisible(true);
   }
 
+  // HÀM QUAN TRỌNG: LƯU CA VÀ KIỂM TRA TRÙNG LỊCH (Giữ nguyên logic kiểm tra trùng lịch)
   async function saveShift() {
     if (!doctorId) return safeAlert('Thông tin thiếu', 'Chọn bác sĩ');
     if (!startTime || !endTime)
@@ -244,24 +256,109 @@ export default function ManageShiftsScreen() {
         return safeAlert('Thông tin thiếu', 'Chọn Thứ trong tuần cho ca định kỳ');
     }
 
+    // 1. TẠO PAYLOAD TẠM THỜI ĐỂ DÙNG CHO KIỂM TRA TRÙNG LỊCH
+    const newShiftPayload: any = {
+      doctor_id: doctorId,
+      start_time: startTime,
+      end_time: endTime,
+      room_id: roomId || null,
+      date: null,
+      day_of_week: dayOfWeek, // Default to dayOfWeek state
+    };
+
+    if (useSpecificDate && specificDate) {
+      newShiftPayload.date = specificDate; // YYYY-MM-DD
+      newShiftPayload.day_of_week = weekdayFromYMD(specificDate); // Tự tính Thứ từ ngày
+    } else {
+      // Ca định kỳ theo Thứ
+      newShiftPayload.date = null;
+      newShiftPayload.day_of_week = dayOfWeek;
+    }
+    
+    // ===================================
+    // 2. BẮT ĐẦU KIỂM TRA TRÙNG LỊCH (CONFLICT CHECK)
+    // Logic: Cùng Bác sĩ + Trùng Ngày/Thứ + Trùng Giờ = CONFLICT
+    // ===================================
+    const conflict = shifts.find(existingShift => {
+      // A. Bỏ qua ca đang chỉnh sửa
+      if (editingId && existingShift.id === editingId) {
+        return false;
+      }
+      
+      // B. Kiểm tra Bác sĩ: PHẢI CÙNG BÁC SĨ
+      if (newShiftPayload.doctor_id !== existingShift.doctor_id) {
+          return false;
+      }
+      
+      // C. BỎ QUA KIỂM TRA PHÒNG KHÁM (Theo yêu cầu của bạn)
+      
+      // D. Kiểm tra Thời gian trùng lặp
+      if (!timesOverlap(
+          newShiftPayload.start_time,
+          newShiftPayload.end_time,
+          existingShift.start_time,
+          existingShift.end_time
+      )) {
+        return false;
+      }
+
+      // E. Kiểm tra Ngày/Thứ (Phải trùng Ngày HOẶC trùng Thứ định kỳ)
+      
+      // E.1. Nếu ca mới là ca cụ thể (có date)
+      if (newShiftPayload.date) {
+        // Trùng với ca cụ thể khác cùng ngày
+        if (existingShift.date === newShiftPayload.date) {
+          return true;
+        }
+        // Trùng với ca định kỳ có cùng day_of_week 
+        if (!existingShift.date && existingShift.day_of_week === newShiftPayload.day_of_week) {
+            return true;
+        }
+      } 
+      // E.2. Nếu ca mới là ca định kỳ (không có date)
+      else { 
+        // Trùng với ca định kỳ khác cùng ngày_of_week
+        if (!existingShift.date && existingShift.day_of_week === newShiftPayload.day_of_week) {
+          return true;
+        }
+        // Trùng với ca cụ thể có cùng day_of_week
+        if (existingShift.date && existingShift.day_of_week === newShiftPayload.day_of_week) {
+            return true;
+        }
+      }
+      
+      return false; // Không có điều kiện nào bị trùng
+    });
+
+    if (conflict) {
+      setBusy(false);
+      const conflictDoctor = doctors.find(d => d.id === conflict.doctor_id)?.name || 'Bác sĩ khác';
+      const conflictType = conflict.date ? 'Ca cụ thể' : 'Ca định kỳ';
+      const conflictRoom = rooms.find(r => r.id === conflict.room_id)?.name || 'Chưa phân phòng';
+      const conflictDay = conflict.date ? formatDateDisplay(conflict.date) : DAYS[conflict.day_of_week];
+
+      // Cập nhật thông báo
+      return safeAlert(
+        'LỖI TRÙNG LỊCH LÀM VIỆC',
+        `Phát hiện ca làm việc trùng lặp của ${conflictDoctor}: 
+        \n- Loại ca: ${conflictType}
+        \n- Ngày/Thứ: ${conflictDay}
+        \n- Thời gian: ${conflict.start_time} - ${conflict.end_time}
+        \n- Phòng khám (ca trùng): ${conflictRoom}
+        \n\nBác sĩ không thể có hai ca làm việc cùng lúc, ngay cả khi khác phòng khám. Vui lòng điều chỉnh Ngày hoặc Thời gian để tiếp tục.`,
+      );
+    }
+    // ===================================
+    // 3. KẾT THÚC KIỂM TRA TRÙNG LỊCH, TIẾN HÀNH LƯU
+    // ===================================
+
+
     setBusy(true);
     try {
-      const payload: any = {
-        doctor_id: doctorId,
-        start_time: startTime,
-        end_time: endTime,
-        room_id: roomId || null,
+      // Dùng payload đã tạo
+      const payload = {
+        ...newShiftPayload, 
         updated_at: new Date().toISOString(),
-      };
-
-      if (useSpecificDate && specificDate) {
-        // Ca cụ thể
-        payload.date = specificDate; // YYYY-MM-DD
-        payload.day_of_week = weekdayFromYMD(specificDate); // Tự tính Thứ từ ngày
-      } else {
-        // Ca định kỳ theo Thứ
-        payload.date = null; // Quan trọng: Đặt là null để xác định ca định kỳ
-        payload.day_of_week = dayOfWeek; // (0..6)
       }
 
       if (editingId) {
@@ -336,7 +433,7 @@ export default function ManageShiftsScreen() {
 
   const isLargeScreen = width > 900;
   
-  // Component Form (Tạo/Sửa)
+  // Component Form (Tạo/Sửa) - Giữ nguyên
   const FormComponent = (
     <View style={[styles.card, isLargeScreen ? styles.formColumn : undefined]}>
         <View style={styles.cardHeader}>
@@ -481,7 +578,7 @@ export default function ManageShiftsScreen() {
                 />
               )}
 
-              {/* Calendar nội bộ (Fallback Modal) - ĐÃ CẬP NHẬT */}
+              {/* Calendar nội bộ (Fallback Modal) - Giữ nguyên */}
               <Modal
                 visible={calendarVisible}
                 transparent
@@ -675,7 +772,7 @@ export default function ManageShiftsScreen() {
     </View>
   );
 
-  // Component Danh sách ca
+  // Component Danh sách ca (ĐÃ THIẾT KẾ LẠI)
   const ListComponent = (
     <View style={[styles.card, isLargeScreen ? styles.listColumn : undefined]}>
         <Text style={styles.sectionTitle}>Danh sách ca đã tạo</Text>
@@ -694,56 +791,66 @@ export default function ManageShiftsScreen() {
               renderItem={({ item }) => {
                 const doc = doctors.find(d => d.id === item.doctor_id) || {};
                 const room = rooms.find(r => r.id === item.room_id) || {};
-
-                // Hiển thị ngày đã chọn theo format DD/MM/YYYY
+                
+                // Logic hiển thị mới
+                const isRecurring = !item.date;
                 const shiftDateText = item.date
-                  ? formatDateDisplay(item.date) // Dùng hàm mới
-                  : DAYS[item.day_of_week] + ' (Định kỳ)'; 
+                  ? formatDateDisplay(item.date)
+                  : DAYS[item.day_of_week];
 
                 return (
                   <View style={styles.shiftCard}>
-                    <View style={styles.shiftCardContent}>
+                    {/* KHỐI CHÍNH: Avatar + Tên + Badge + Chi tiết */}
+                    <View style={styles.shiftCardMainContent}>
                       <Avatar uri={doc.photoURL} name={doc.name} size={48} />
-                      <View style={styles.shiftCardText}>
-                        <Text style={styles.shiftDoctorName}>
-                          {doc.name || item.doctor_id}
-                        </Text>
-                        {/* Thay thế emoji bằng Icon */}
-                        <View style={styles.detailRow}>
-                            <Icon name="map-pin" size={14} color={COLORS.textLight} style={styles.detailIcon} />
-                            <Text style={styles.shiftDetailText}>
-                                {room.name || 'Chưa phân phòng'}
+                      
+                      <View style={styles.shiftInfoBlock}>
+                        {/* 1. TÊN BÁC SĨ & BADGE LOẠI CA */}
+                        <View style={styles.shiftHeaderRow}>
+                            <Text style={styles.shiftDoctorName}>
+                              {doc.name || item.doctor_id}
                             </Text>
+                   
                         </View>
-                        <View style={styles.detailRow}>
-                            <Icon name="calendar" size={14} color={COLORS.textLight} style={styles.detailIcon} />
-                            <Text style={styles.shiftDetailText}>
+                        {/* 2. NGÀY VÀ GIỜ (Compact) */}
+                        <View style={styles.shiftDetailRowCompact}>
+                            <Icon name="calendar" size={14} color={COLORS.textDark} style={styles.detailIcon} />
+                            <Text style={styles.shiftDetailTextCompact}>
                                 {shiftDateText}
                             </Text>
-                            <Icon name="clock" size={14} color={COLORS.textLight} style={[styles.detailIcon, {marginLeft: 10}]} />
-                            <Text style={styles.shiftDetailText}>
+                        </View>
+                        <View style={styles.shiftDetailRowCompact}>
+                            <Icon name="clock" size={14} color={COLORS.textDark} style={[styles.detailIcon, {marginLeft: 10}]} />
+                            <Text style={styles.shiftDetailTextCompact}>
                                 {item.start_time} - {item.end_time}
+                            </Text>
+                        </View>
+                        {/* 3. PHÒNG KHÁM */}
+                        <View style={styles.shiftDetailRowCompact}>
+                            <Icon name="map-pin" size={14} color={COLORS.textLight} style={styles.detailIcon} />
+                            <Text style={styles.shiftDetailText}>
+                                Phòng: {room.name || 'Chưa phân phòng'}
                             </Text>
                         </View>
                       </View>
                     </View>
                     
-                    {/* Thay thế Button bằng TouchableOpacity có Icon */}
+                    {/* KHỐI HÀNH ĐỘNG: Xếp chồng dọc */}
                     <View style={styles.shiftCardActions}>
                       <TouchableOpacity
                         onPress={() => onEdit(item)}
                         style={styles.editButton}
                       >
-                          <Icon name="edit" size={16} color={COLORS.cardBackground} style={{ marginRight: 5 }} />
-                          <Text style={styles.editButtonText}>Sửa</Text>
+                          <Icon name="edit" size={14} color={COLORS.cardBackground} style={{ marginRight: 5 }} />
+                          <Text style={styles.actionButtonText}>Sửa</Text>
                       </TouchableOpacity>
-                      <View style={{ width: 8 }} />
+                      {/* Thêm khoảng cách dọc */}
+                      <View style={{ height: 8 }} /> 
                       <TouchableOpacity
                         onPress={() => onDelete(item.id)}
-                        style={styles.deleteButton}
-                      >
-                          <Icon name="trash-2" size={16} color={COLORS.cardBackground} style={{ marginRight: 5 }} />
-                          <Text style={styles.deleteButtonText}>Xóa</Text>
+                        style={styles.deleteButton}>
+                          <Icon name="trash-2" size={14} color={COLORS.cardBackground} style={{ marginRight: 5 }} />
+                          <Text style={styles.actionButtonText}>Xóa</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -1059,7 +1166,7 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
   },
-  // Shift List (Updated)
+  // Shift List (UPDATED STYLES FOR REDESIGN)
   shiftCard: {
     backgroundColor: COLORS.cardBackground,
     padding: 16,
@@ -1084,64 +1191,104 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  shiftCardContent: {
+  // New: Container cho Avatar và Info Block
+  shiftCardMainContent: {
     flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
+    alignItems: 'flex-start',
+    flex: 1, // Chiếm phần lớn không gian
   },
-  shiftCardText: {
+  // New: Khối chứa tên và chi tiết ca
+  shiftInfoBlock: {
     marginLeft: 12,
     flex: 1,
+    justifyContent: 'center',
   },
-  shiftDoctorName: {
+  // New: Hàng chứa tên bác sĩ và badge
+  shiftHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  // New: Badge cho loại ca
+  shiftBadge: {
+    marginLeft: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  badgeRecurring: {
+    backgroundColor: COLORS.secondary, // Cam cho Định kỳ
+  },
+  badgeSpecific: {
+    backgroundColor: COLORS.primary, // Xanh chủ đạo cho Cụ thể
+  },
+  shiftBadgeText: {
+    color: COLORS.cardBackground,
+    fontSize: 11,
     fontWeight: '700',
-    fontSize: 16,
-    color: COLORS.textDark,
+    textTransform: 'uppercase',
   },
-  // Thêm styles cho DetailRow
-  detailRow: {
+  // New: Hàng chi tiết compact
+  shiftDetailRowCompact: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 4,
     flexWrap: 'wrap',
   },
+  shiftDetailTextCompact: {
+    color: COLORS.textDark, // Chữ đậm hơn để dễ đọc
+    fontSize: 13,
+    fontWeight: '500',
+    marginRight: 8,
+  },
+  // Giữ nguyên shiftDoctorName
+  shiftDoctorName: {
+    fontWeight: '700',
+    fontSize: 16,
+    color: COLORS.textDark,
+  },
+  // detailIcon (Giữ nguyên)
   detailIcon: {
     marginRight: 4,
   },
+  // shiftDetailText (Giữ nguyên cho Room, dùng màu nhẹ hơn)
   shiftDetailText: {
-    color: COLORS.textLight,
+    color: COLORS.textLight, 
     fontSize: 13,
   },
+  // shiftCardActions: Xếp dọc các nút
   shiftCardActions: {
-    flexDirection: 'row',
+    flexDirection: 'column', 
     marginLeft: 10,
+    justifyContent: 'center', 
+    gap: 8, // Khoảng cách giữa các nút
   },
-  // Chỉnh sửa style Button thành TouchableOpacity có Icon
+  // Chỉnh sửa style Button thành TouchableOpacity có Icon (nhỏ hơn, min width)
   editButton: {
     backgroundColor: COLORS.success,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     borderRadius: 6,
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  editButtonText: {
-    color: COLORS.cardBackground,
-    fontWeight: '600',
-    fontSize: 13,
+    minWidth: 70, 
+    justifyContent: 'center',
   },
   deleteButton: {
     backgroundColor: COLORS.danger,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     borderRadius: 6,
     flexDirection: 'row',
     alignItems: 'center',
+    minWidth: 70, 
+    justifyContent: 'center',
   },
-  deleteButtonText: {
+  // Thống nhất màu chữ của cả Sửa và Xóa (trắng)
+  actionButtonText: { 
     color: COLORS.cardBackground,
     fontWeight: '600',
-    fontSize: 13,
+    fontSize: 12, // Cỡ chữ nhỏ hơn một chút
   },
   emptyListText: {
     textAlign: 'center',

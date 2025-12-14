@@ -1,3 +1,4 @@
+// file: ManageSpecialtiesScreen.tsx
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -8,41 +9,47 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
-  Platform, // Dùng để xử lý shadow/elevation
+  Platform, 
 } from 'react-native';
+
 import Input from '@/components/Input';
 import Button from '@/components/Button';
-import db from '@/services/firestore';
-import safeAlert from '@/utils/safeAlert';
+import db from '@/services/firestore'; 
+import safeAlert from '@/utils/safeAlert'; 
 
-// --- BẢNG MÀU MỚI ---
+// --- BẢNG MÀU MỚI --- Định nghĩa màu sắc thống nhất
 const COLORS = {
-  primary: '#2596be', // Xanh Indigo
-  accent: '#F44336', // Đỏ tươi
-  background: '#F5F5F5', // Xám nền
-  cardBackground: '#FFFFFF', // Nền Card/Item
-  textPrimary: '#212121', // Chữ đậm
-  textSecondary: '#757575', // Chữ phụ
-  divider: '#E0E0E0', // Viền/Kẻ ngang
-  success: '#4CAF50', // Xanh lá
+  primary: '#2596be', 
+  accent: '#F44336',
+  background: '#F5F5F5', 
+  cardBackground: '#FFFFFF', 
+  textPrimary: '#212121',
+  textSecondary: '#757575', 
+  divider: '#E0E0E0', 
+  success: '#4CAF50',
 };
 
 export default function ManageSpecialtiesScreen() {
-  const [specialties, setSpecialties] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState<any | null>(null);
-  const [name, setName] = useState('');
+  // --- STATE MANAGEMENT ---
+  const [specialties, setSpecialties] = useState<any[]>([]); // Danh sách chuyên khoa
+  const [loading, setLoading] = useState(false); // Trạng thái tải dữ liệu
+  const [modalVisible, setModalVisible] = useState(false); // Trạng thái hiển thị Modal
+  const [editing, setEditing] = useState<any | null>(null); // Thông tin chuyên khoa đang chỉnh sửa (null nếu tạo mới)
+  const [name, setName] = useState(''); // Tên chuyên khoa trong input
 
+  // --- LIFECYCLE HOOK ---
   useEffect(() => {
+    // Tải danh sách chuyên khoa khi component được mount
     loadSpecialties();
   }, []);
 
+  // --- LOGIC: READ (Load Data) ---
   async function loadSpecialties() {
     try {
       setLoading(true);
-      // Đảm bảo việc sắp xếp theo tên vẫn được giữ lại
-      const snap = await db.collection('specialties').orderBy('name').get(); 
+      // Lấy dữ liệu từ Firestore và sắp xếp theo tên
+      const snap = await db.collection('specialties').orderBy('name').get();
+      // Ánh xạ (map) dữ liệu từ Firestore thành mảng state
       setSpecialties(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
     } catch (e) {
       console.warn('load specialties', e);
@@ -52,43 +59,50 @@ export default function ManageSpecialtiesScreen() {
     }
   }
 
+  // --- LOGIC: CREATE (Open Modal) ---
   function openCreate() {
-    setEditing(null);
+    setEditing(null); // Đặt trạng thái là tạo mới
     setName('');
     setModalVisible(true);
   }
 
+  // --- LOGIC: UPDATE (Open Modal) ---
   function openEdit(item: any) {
-    setEditing(item);
+    setEditing(item); // Lưu item đang sửa
     setName(item.name || '');
     setModalVisible(true);
   }
 
+  // --- LOGIC: CREATE/UPDATE (Save Data) ---
   async function save() {
     if (!name.trim())
       return safeAlert('Thông tin thiếu', 'Nhập tên chuyên khoa');
     try {
       if (editing) {
+        // Cập nhật chuyên khoa đã tồn tại (UPDATE)
         await db
           .collection('specialties')
           .doc(editing.id)
           .set({ name: name.trim() }, { merge: true });
         safeAlert('Thành công', 'Cập nhật chuyên khoa');
       } else {
+        // Tạo chuyên khoa mới (CREATE)
         await db
           .collection('specialties')
           .add({ name: name.trim(), created_at: new Date().toISOString() });
         safeAlert('Thành công', 'Tạo chuyên khoa mới');
       }
       setModalVisible(false);
-      await loadSpecialties();
+      await loadSpecialties(); // Tải lại danh sách sau khi lưu
     } catch (e) {
       console.warn('save specialty', e);
       safeAlert('Lỗi', 'Lưu chuyên khoa thất bại');
     }
   }
 
+  // --- LOGIC: DELETE (Remove Data) ---
   function remove(item: any) {
+    // Hiển thị hộp thoại xác nhận trước khi xóa
     Alert.alert('Xác nhận', `Xóa chuyên khoa "${item.name}"?`, [
       { text: 'Hủy', style: 'cancel' },
       {
@@ -98,7 +112,7 @@ export default function ManageSpecialtiesScreen() {
           try {
             await db.collection('specialties').doc(item.id).delete();
             safeAlert('Đã xóa', 'Chuyên khoa đã được xóa');
-            loadSpecialties();
+            loadSpecialties(); // Tải lại danh sách sau khi xóa
           } catch (e) {
             console.warn('delete specialty', e);
             safeAlert('Lỗi', 'Không xóa được chuyên khoa');
@@ -108,17 +122,19 @@ export default function ManageSpecialtiesScreen() {
     ]);
   }
 
-  // Component Item riêng cho FlatList
+  // --- COMPONENT CON: Item Chuyên Khoa cho FlatList ---
   const renderSpecialtyItem = ({ item }: { item: any }) => (
     <View style={styles.itemContainer}>
       <Text style={styles.itemText}>{item.name}</Text>
       <View style={{ flexDirection: 'row' }}>
+        {/* Nút Sửa */}
         <TouchableOpacity
           onPress={() => openEdit(item)}
           style={styles.actionButton}
         >
           <Text style={[styles.actionText, { color: COLORS.primary }]}>Sửa</Text>
         </TouchableOpacity>
+        {/* Nút Xóa */}
         <TouchableOpacity
           onPress={() => remove(item)}
           style={[styles.actionButton, { marginLeft: 16 }]}
@@ -129,6 +145,7 @@ export default function ManageSpecialtiesScreen() {
     </View>
   );
 
+  // --- MAIN RENDER ---
   return (
     <View style={styles.container}>
       {/* Header Area */}
@@ -139,6 +156,7 @@ export default function ManageSpecialtiesScreen() {
             Danh sách chuyên khoa và chỉnh sửa.
           </Text>
         </View>
+        {/* Nút Thêm Mới */}
         <Button 
           title="➕ Thêm Mới" 
           onPress={openCreate} 
@@ -157,39 +175,42 @@ export default function ManageSpecialtiesScreen() {
           keyExtractor={s => s.id}
           renderItem={renderSpecialtyItem}
           contentContainerStyle={styles.listContent}
-          ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
+          // Sử dụng margin trên itemContainer thay vì ItemSeparatorComponent
+          ItemSeparatorComponent={() => <View style={styles.listSeparator} />} 
         />
       )}
 
       {/* Modal - Create/Edit */}
       <Modal
         visible={modalVisible}
-        animationType="fade" // Đổi từ 'slide' sang 'fade' cho cảm giác hiện đại hơn
+        animationType="fade" // Hiệu ứng mờ dần
         transparent={true}
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={() => setModalVisible(false)} // Cho phép đóng bằng nút Back (Android)
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>
               {editing ? 'Sửa chuyên khoa' : 'Thêm chuyên khoa mới'}
             </Text>
+            {/* Input Tên chuyên khoa */}
             <Input
               placeholder="Nhập tên chuyên khoa"
               value={name}
               onChangeText={setName}
               style={{ marginBottom: 20 }}
             />
+            {/* Hàng nút hành động trong Modal */}
             <View style={styles.modalButtonRow}>
               <Button
                 title="Hủy"
                 onPress={() => setModalVisible(false)}
-                style={{ backgroundColor: COLORS.textSecondary }}
+                style={{ backgroundColor: COLORS.textSecondary }} // Nút Hủy màu xám phụ
               />
               <View style={{ width: 12 }} />
               <Button
                 title="Lưu Lại"
                 onPress={save}
-                style={{ backgroundColor: COLORS.primary }}
+                style={{ backgroundColor: COLORS.primary }} // Nút Lưu màu chủ đạo
               />
             </View>
           </View>
@@ -199,41 +220,42 @@ export default function ManageSpecialtiesScreen() {
   );
 }
 
+// --- STYLESHEET ---
 const styles = StyleSheet.create({
   container: { 
     flex: 1, 
     backgroundColor: COLORS.background, // Nền chung của màn hình
-    paddingHorizontal: 16, // Giữ padding ngang
+    paddingHorizontal: 16, 
   },
   // --- HEADER STYLES ---
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'flex-start', // Căn chỉnh top cho content
     justifyContent: 'space-between',
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.divider,
+    borderBottomColor: COLORS.divider, // Đường kẻ phân chia header
     marginBottom: 8,
   },
   title: { 
     fontSize: 22, 
     fontWeight: '800', 
-    color: COLORS.textPrimary 
+    color: COLORS.textPrimary // Tiêu đề chính
   },
   subtitle: { 
     color: COLORS.textSecondary, 
-    marginTop: 4 
+    marginTop: 4 // Tiêu đề phụ/mô tả
   },
 
   // --- LIST STYLES ---
   listContent: {
-    paddingBottom: 20, // Khoảng cách cuối danh sách
+    paddingBottom: 20, 
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: 150,
+    minHeight: 150, // Đảm bảo ActivityIndicator có đủ không gian
   },
   itemContainer: {
     flexDirection: 'row',
@@ -243,7 +265,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 8,
     marginVertical: 6, // Khoảng cách giữa các item
-    // Shadow cho Android và iOS
+    // Đổ bóng cho item (Card)
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -271,21 +293,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   listSeparator: {
-    height: 0, // Dùng itemContainer có margin để phân cách, bỏ separator
+    height: 0, // Không dùng separator
   },
   
   // --- MODAL STYLES ---
   modalBackdrop: {
     flex: 1,
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)', // Nền tối hơn
+    backgroundColor: 'rgba(0,0,0,0.5)', 
     paddingHorizontal: 20,
   },
   modalContent: {
     backgroundColor: COLORS.cardBackground,
-    borderRadius: 12, // Góc bo tròn hơn
+    borderRadius: 12, 
     padding: 24,
-    // Thêm chút shadow cho modal nổi bật
+    // Đổ bóng cho Modal
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -302,7 +324,7 @@ const styles = StyleSheet.create({
     fontSize: 18, 
     fontWeight: '700', 
     color: COLORS.textPrimary, 
-    marginBottom: 16 
+    marginBottom: 16 // Tiêu đề Modal
   },
   modalButtonRow: { 
     flexDirection: 'row', 

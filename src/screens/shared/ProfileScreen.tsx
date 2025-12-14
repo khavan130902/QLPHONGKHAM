@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   Modal,
   ActivityIndicator,
+  Alert, // Dùng cho nút Đăng xuất
+  ScrollView, // Dùng để khắc phục lỗi không cuộn được
 } from 'react-native';
 import safeAlert from '@/utils/safeAlert';
 import Input from '@/components/Input';
@@ -16,7 +18,7 @@ import db from '@/services/firestore';
 import { uploadImage } from '@/services/storage';
 
 export default function ProfileScreen() {
-  const { user, updateProfile } = useAuth() as any;
+  const { user, updateProfile, signOut } = useAuth() as any;
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [imageUri, setImageUri] = useState('');
@@ -42,7 +44,7 @@ export default function ProfileScreen() {
       setPhone(data?.phoneNumber || user.phoneNumber || '');
       setImageUri(data?.photoURL || '');
       // prefer specialty_id; if legacy specialty exists try to map it below
-      setSpecialty('');
+      setSpecialty(''); // Giữ lại state này nhưng không dùng cho doctor profile UI
       setSpecialtyId(data?.specialty_id || null);
       setEmail(data?.email || '');
       setRole(data?.role || '');
@@ -94,7 +96,7 @@ export default function ProfileScreen() {
       if (age) payload.age = age;
       if (address) payload.address = address;
       if (photoURL) payload.photoURL = photoURL;
-      // prefer specialty_id for doctors; do NOT write legacy `specialty` field
+      // specialty_id is saved if it exists, specialty field is ignored
       if (specialtyId) payload.specialty_id = specialtyId;
 
       await updateProfile(payload);
@@ -211,124 +213,154 @@ export default function ProfileScreen() {
     };
   }, [tempImageUri]);
 
+  // HÀM ĐĂNG XUẤT (từ SettingsScreen)
+  async function handleSignOut() {
+    Alert.alert('Xác nhận', 'Bạn có chắc muốn đăng xuất?', [
+      { text: 'Hủy', style: 'cancel' },
+      {
+        text: 'Đăng xuất',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await signOut();
+            safeAlert('Đã đăng xuất', 'Bạn đã đăng xuất thành công');
+          } catch (err) {
+            console.warn('signOut failed', err);
+            safeAlert('Lỗi', 'Không thể đăng xuất');
+          }
+        },
+      },
+    ]);
+  }
+  
+  // TÍNH TOÁN TÊN CHUYÊN KHOA ĐỂ HIỂN THỊ
+  const currentSpecialtyName =
+    specialties.find(s => s.id === specialtyId)?.name || 'Chưa cập nhật';
+
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Hồ sơ cá nhân</Text>
-      <View style={{ alignItems: 'center', marginBottom: 12 }}>
-        <TouchableOpacity
-          onPress={() => {
-            setTempImageUri(imageUri || '');
-            setImageModalVisible(true);
-          }}
-        >
-          {imageUri ? (
-            <Image
-              source={{ uri: imageUri }}
-              style={{ width: 96, height: 96, borderRadius: 48 }}
-            />
-          ) : (
-            <View
-              style={{
-                width: 96,
-                height: 96,
-                borderRadius: 48,
-                backgroundColor: '#EEE',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Text style={{ color: '#666' }}>Ảnh</Text>
+      
+      {/* ĐÃ BỌC TOÀN BỘ NỘI DUNG FORM BẰNG SCROLLVIEW */}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}> 
+      
+        <View style={{ alignItems: 'center', marginBottom: 12 }}>
+          <TouchableOpacity
+            onPress={() => {
+              setTempImageUri(imageUri || '');
+              setImageModalVisible(true);
+            }}
+          >
+            {imageUri ? (
+              <Image
+                source={{ uri: imageUri }}
+                style={{ width: 96, height: 96, borderRadius: 48 }}
+              />
+            ) : (
+              <View
+                style={{
+                  width: 96,
+                  height: 96,
+                  borderRadius: 48,
+                  backgroundColor: '#EEE',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text style={{ color: '#666' }}>Ảnh</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <Text style={{ color: '#666', marginTop: 8 }}>
+            Chạm để thêm/đổi ảnh hồ sơ
+          </Text>
+          {uploading ? (
+            <View style={{ marginTop: 8, alignItems: 'center' }}>
+              <ActivityIndicator size="small" />
+              <Text style={{ color: '#666', marginTop: 6 }}>
+                {uploadProgress}%
+              </Text>
             </View>
-          )}
-        </TouchableOpacity>
-        <Text style={{ color: '#666', marginTop: 8 }}>
-          Chạm để thêm/đổi ảnh hồ sơ
-        </Text>
-        {uploading ? (
-          <View style={{ marginTop: 8, alignItems: 'center' }}>
-            <ActivityIndicator size="small" />
-            <Text style={{ color: '#666', marginTop: 6 }}>
-              {uploadProgress}%
-            </Text>
-          </View>
-        ) : null}
-        {/* image URL hidden for privacy / cleaner UI */}
-      </View>
-      <View style={{ marginVertical: 8 }}>
-        <Text style={{ color: '#666', marginBottom: 6 }}>Họ và tên</Text>
-        <Input placeholder="Họ và tên" value={name} onChangeText={setName} />
-      </View>
-
-      <View style={{ marginVertical: 8 }}>
-        <Text style={{ color: '#666', marginBottom: 6 }}>Số điện thoại</Text>
-        <Input
-          placeholder="Số điện thoại"
-          value={phone}
-          onChangeText={setPhone}
-          keyboardType="phone-pad"
-        />
-      </View>
-
-      <View style={{ marginVertical: 8 }}>
-        <Text style={{ color: '#666', marginBottom: 6 }}>Tuổi</Text>
-        <Input
-          placeholder="Tuổi"
-          value={age}
-          onChangeText={setAge}
-          keyboardType="numeric"
-        />
-      </View>
-
-      <View style={{ marginVertical: 8 }}>
-        <Text style={{ color: '#666', marginBottom: 6 }}>Địa chỉ</Text>
-        <Input
-          placeholder="Địa chỉ"
-          value={address}
-          onChangeText={setAddress}
-        />
-      </View>
-
-      <View style={{ marginVertical: 8 }}>
-        <Text style={{ color: '#666', marginBottom: 6 }}>Email</Text>
-        <View
-          style={{
-            borderWidth: 1,
-            borderColor: '#eee',
-            padding: 12,
-            borderRadius: 8,
-            backgroundColor: '#f9f9f9',
-          }}
-        >
-          <Text>{email || '-'}</Text>
+          ) : null}
         </View>
-      </View>
-
-      <View style={{ marginVertical: 8 }}>
-        <Text style={{ color: '#666', marginBottom: 6 }}>Vai trò</Text>
-        <View
-          style={{
-            borderWidth: 1,
-            borderColor: '#eee',
-            padding: 12,
-            borderRadius: 8,
-            backgroundColor: '#f9f9f9',
-          }}
-        >
-          <Text>{role || '-'}</Text>
-        </View>
-      </View>
-
-      {role === 'doctor' ? (
         <View style={{ marginVertical: 8 }}>
-          <Text style={{ color: '#666', marginBottom: 6 }}>Chuyên khoa</Text>
+          <Text style={{ color: '#666', marginBottom: 6 }}>Họ và tên</Text>
+          <Input placeholder="Họ và tên" value={name} onChangeText={setName} />
+        </View>
+
+        <View style={{ marginVertical: 8 }}>
+          <Text style={{ color: '#666', marginBottom: 6 }}>Số điện thoại</Text>
           <Input
-            placeholder="Chuyên khoa"
-            value={specialty}
-            onChangeText={setSpecialty}
+            placeholder="Số điện thoại"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
           />
         </View>
-      ) : null}
-      <Button title="Lưu" onPress={onSave} disabled={loading} />
+
+        <View style={{ marginVertical: 8 }}>
+          <Text style={{ color: '#666', marginBottom: 6 }}>Tuổi</Text>
+          <Input
+            placeholder="Tuổi"
+            value={age}
+            onChangeText={setAge}
+            keyboardType="numeric"
+          />
+        </View>
+
+        <View style={{ marginVertical: 8 }}>
+          <Text style={{ color: '#666', marginBottom: 6 }}>Địa chỉ</Text>
+          <Input
+            placeholder="Địa chỉ"
+            value={address}
+            onChangeText={setAddress}
+          />
+        </View>
+
+        <View style={{ marginVertical: 8 }}>
+          <Text style={{ color: '#666', marginBottom: 6 }}>Email</Text>
+          <View
+            style={styles.readOnlyField}
+          >
+            <Text>{email || '-'}</Text>
+          </View>
+        </View>
+
+        <View style={{ marginVertical: 8 }}>
+          <Text style={{ color: '#666', marginBottom: 6 }}>Vai trò</Text>
+          <View
+            style={styles.readOnlyField}
+          >
+            <Text>{role || '-'}</Text>
+          </View>
+        </View>
+
+        {/* ĐÃ SỬA: Hiển thị Chuyên khoa dưới dạng chỉ đọc */}
+        {role === 'doctor' ? (
+          <View style={{ marginVertical: 8 }}>
+            <Text style={{ color: '#666', marginBottom: 6 }}>Chuyên khoa</Text>
+            <View style={styles.readOnlyField}>
+              <Text>{currentSpecialtyName}</Text>
+            </View>
+          </View>
+        ) : null}
+        
+        {/* NÚT LƯU */}
+        <Button title="Lưu" onPress={onSave} disabled={loading} />
+        
+        {/* NÚT ĐĂNG XUẤT */}
+        <View style={{ marginTop: 20 }}>
+          <Button 
+            title="Đăng xuất" 
+            onPress={handleSignOut} 
+            style={{ backgroundColor: '#EF4444' }} 
+          />
+        </View>
+      
+      </ScrollView>
+
+      {/* MODAL */}
       <Modal
         visible={imageModalVisible}
         animationType="slide"
@@ -388,4 +420,11 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: '#fff' },
   title: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
+  readOnlyField: { 
+    borderWidth: 1,
+    borderColor: '#eee',
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#f9f9f9',
+  }
 });
